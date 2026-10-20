@@ -1,0 +1,5 @@
+/yi-go
+/yi-go.exe
+*.test
+coverage.out
+.DS_Store

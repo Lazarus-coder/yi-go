@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f2eb">
+  <meta name="description" content="弈，一个安静、简单的围棋练习。执黑先行，与基础 CPU 对手下一局。">
+  <title>弈 · 一局围棋</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23eee9db'/%3E%3Ccircle cx='32' cy='32' r='20' fill='%232d3027'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <a class="brand" href="/" aria-label="弈，首页"><span class="brand-mark">弈</span><span class="brand-name">YI <span>/</span> 围棋</span></a>
+      <span class="header-note">一局之间，静下来。</span>
+    </header>
+    <main>
+      <section class="board-area" aria-label="对局棋盘">
+        <div class="board-heading"><span id="board-size">九路棋盘</span><span id="move-count">第 0 手</span></div>
+        <div class="board-shell">
+          <svg id="board" viewBox="0 0 640 640" tabindex="0" role="application" aria-roledescription="围棋棋盘" aria-label="九路棋盘，黑棋先行" aria-describedby="board-help">
+            <defs>
+              <radialGradient id="black-stone" cx="32%" cy="24%" r="78%"><stop offset="0" stop-color="#51524a"/><stop offset=".55" stop-color="#292c25"/><stop offset="1" stop-color="#171b16"/></radialGradient>
+              <radialGradient id="white-stone" cx="32%" cy="24%" r="78%"><stop offset="0" stop-color="#fffef8"/><stop offset=".65" stop-color="#f5f2e8"/><stop offset="1" stop-color="#d8d4c6"/></radialGradient>
+              <filter id="stone-shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#342713" flood-opacity=".26"/></filter>
+            </defs>
+            <g id="grid" aria-hidden="true"></g>
+            <g id="stones" aria-hidden="true"></g>
+            <circle id="ghost" fill="#262b22" opacity=".22" pointer-events="none" hidden/>
+            <circle id="cursor" fill="none" stroke="#a54932" stroke-width="2" pointer-events="none" hidden/>
+          </svg>
+        </div>
+        <p id="board-help" class="board-help">点击交叉点落子<span>·</span>也可用方向键移动，回车落子</p>
+        <span id="board-announcement" class="sr-only" role="status" aria-live="polite"></span>
+      </section>
+      <aside class="sidebar" aria-label="对局信息和控制">
+        <div class="intro"><p class="eyebrow">一 局 围 棋</p><h1>落子，从容。</h1><p class="intro-copy">你执黑先行，与电脑手谈一局。</p></div>
+        <div class="players">
+          <div class="player"><span class="player-stone black"></span><div><strong>你</strong><span>黑棋 · 先行</span></div><span id="human-turn" class="turn-dot" aria-label="当前回合"></span></div>
+          <div class="player"><span class="player-stone white"></span><div><strong>CPU</strong><span>白棋 · 基础对手</span></div><span id="cpu-turn" class="turn-dot" aria-label="当前回合" hidden></span></div>
+        </div>
+        <div class="status-box">
+          <p id="status" class="status" role="status" aria-live="polite">轮到你了</p>
+          <p id="status-detail">选择一个交叉点，落下第一颗棋子。</p>
+        </div>
+        <dl class="capture-stats"><div><dt>黑棋提子</dt><dd id="black-captures">0</dd></div><div><dt>白棋提子</dt><dd id="white-captures">0</dd></div></dl>
+        <div class="controls">
+          <label class="size-label" for="size">棋盘规格<select id="size"><option value="9">9 × 9 · 小棋盘</option><option value="13">13 × 13 · 中棋盘</option><option value="19">19 × 19 · 标准棋盘</option></select></label>
+          <div class="action-row"><button id="undo" type="button" disabled>悔棋 <span aria-hidden="true">↶</span></button><button id="pass" type="button">停一手 <span aria-hidden="true">→</span></button></div>
+          <button id="new-game" class="primary" type="button">新对局 <span aria-hidden="true">＋</span></button>
+          <button id="resign" class="quiet" type="button">认输</button>
+        </div>
+        <p id="error" class="error" role="alert" hidden></p>
+        <details class="rules"><summary>棋局小记 <span aria-hidden="true">＋</span></summary><div><p>黑白交替落子。棋子上下左右相连形成一块；相邻空点称为「气」。没有气的棋块会被提走，不能自杀落子。</p><p>采用简单劫规则，不能立即还原上一手之前的局面。双方连续停一手后结束；白棋贴 6.5 目。</p><p>终局以盘面棋子和围住的空点估算面积，不自动判定死子。请先把需要提走的棋子提净，再停一手。这是练习用的简化计分。</p><p>CPU 使用基础启发式策略，适合入门练习。悔棋会撤回你与 CPU 的最近一轮落子。</p></div></details>
+      </aside>
+    </main>
+    <footer><span>黑白之间，自有天地。</span><span id="save-note">棋局自动保存在此浏览器</span></footer>
+  </div>
+</body>
+</html>
