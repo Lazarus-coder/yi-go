@@ -31,7 +31,7 @@ func play(t *testing.T, g *Game, move Move) {
 func TestNew(t *testing.T) {
 	for _, size := range []int{9, 13, 19} {
 		g, err := New(size)
-		if err != nil || len(g.Board) != size*size || g.Next != Black || g.Moves == nil {
+		if err != nil || len(g.Board) != size*size || g.Next != Black || g.Moves == nil || g.Style != "china" {
 			t.Fatalf("New(%d) = %+v, %v", size, g, err)
 		}
 	}
@@ -145,58 +145,75 @@ func TestResign(t *testing.T) {
 }
 
 func TestCPUTakesCapture(t *testing.T) {
-	g := newGame(t)
-	g.Next = White
-	place(g, Black, Move{1, 1}, Move{2, 1})
-	place(g, White, Move{0, 1}, Move{1, 0}, Move{2, 0}, Move{3, 1}, Move{1, 2})
-
-	move := g.ChooseMove()
-	if move != (Move{2, 2}) {
-		t.Fatalf("CPU chose %v instead of capturing two stones", move)
+	for _, style := range []string{"china", "japan", "korea"} {
+		t.Run(style, func(t *testing.T) {
+			g := newGame(t)
+			g.Style = style
+			g.Next = White
+			place(g, Black, Move{1, 1}, Move{2, 1})
+			place(g, White, Move{0, 1}, Move{1, 0}, Move{2, 0}, Move{3, 1}, Move{1, 2})
+			move := g.ChooseMove()
+			if move != (Move{2, 2}) {
+				t.Fatalf("CPU chose %v instead of capturing two stones", move)
+			}
+			play(t, g, move)
+		})
 	}
-	play(t, g, move)
 }
 
 func TestCPUSavesAtari(t *testing.T) {
-	g := newGame(t)
-	g.Next = White
-	place(g, White, Move{4, 4}, Move{4, 5})
-	place(g, Black, Move{3, 4}, Move{4, 3}, Move{5, 4}, Move{3, 5}, Move{5, 5})
-	if move := g.ChooseMove(); move != (Move{4, 6}) {
-		t.Fatalf("CPU chose %v instead of saving its group", move)
+	for _, style := range []string{"china", "japan", "korea"} {
+		t.Run(style, func(t *testing.T) {
+			g := newGame(t)
+			g.Style = style
+			g.Next = White
+			place(g, White, Move{4, 4}, Move{4, 5})
+			place(g, Black, Move{3, 4}, Move{4, 3}, Move{5, 4}, Move{3, 5}, Move{5, 5})
+			if move := g.ChooseMove(); move != (Move{4, 6}) {
+				t.Fatalf("CPU chose %v instead of saving its group", move)
+			}
+		})
 	}
 }
 
 func TestCPUProtectsEyesAndPasses(t *testing.T) {
-	g := newGame(t)
-	for point := range g.Board {
-		g.Board[point] = Black
-	}
-	place(g, Empty, Move{2, 2}, Move{6, 6})
-	if move := g.ChooseMove(); move != (Move{-1, -1}) {
-		t.Fatalf("CPU should preserve both eyes and pass, chose %v", move)
+	for _, style := range []string{"china", "japan", "korea"} {
+		t.Run(style, func(t *testing.T) {
+			g := newGame(t)
+			g.Style = style
+			for point := range g.Board {
+				g.Board[point] = Black
+			}
+			place(g, Empty, Move{2, 2}, Move{6, 6})
+			if move := g.ChooseMove(); move != (Move{-1, -1}) {
+				t.Fatalf("CPU should preserve both eyes and pass, chose %v", move)
+			}
+		})
 	}
 }
 
 func TestCPUPlaysLegalMovesAndFinishes(t *testing.T) {
-	for _, size := range []int{9, 13, 19} {
-		t.Run(strconv.Itoa(size), func(t *testing.T) {
-			g, err := New(size)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for turn := 0; turn < size*size*3 && !g.Over; turn++ {
-				before := append([]int(nil), g.Board...)
-				next, moves := g.Next, len(g.Moves)
-				move := g.ChooseMove()
-				if !reflect.DeepEqual(before, g.Board) || g.Next != next || len(g.Moves) != moves {
-					t.Fatal("thinking changed the game")
+	for _, style := range []string{"china", "japan", "korea"} {
+		for _, size := range []int{9, 13, 19} {
+			t.Run(style+"/"+strconv.Itoa(size), func(t *testing.T) {
+				g, err := New(size)
+				if err != nil {
+					t.Fatal(err)
 				}
-				play(t, g, move)
-			}
-			if !g.Over {
-				t.Fatal("CPU self-play should settle and finish")
-			}
-		})
+				g.Style = style
+				for turn := 0; turn < size*size*3 && !g.Over; turn++ {
+					before := append([]int(nil), g.Board...)
+					next, moves := g.Next, len(g.Moves)
+					move := g.ChooseMove()
+					if !reflect.DeepEqual(before, g.Board) || g.Next != next || len(g.Moves) != moves {
+						t.Fatal("thinking changed the game")
+					}
+					play(t, g, move)
+				}
+				if !g.Over {
+					t.Fatal("CPU self-play should settle and finish")
+				}
+			})
+		}
 	}
 }

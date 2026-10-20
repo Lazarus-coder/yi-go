@@ -34,6 +34,7 @@ type Score struct {
 
 type Game struct {
 	Size     int      `json:"size"`
+	Style    string   `json:"style"`
 	Board    []int    `json:"board"`
 	Next     int      `json:"next"`
 	Moves    []Move   `json:"moves"`
@@ -54,10 +55,23 @@ func New(size int) (*Game, error) {
 	}
 	return &Game{
 		Size:  size,
+		Style: "china",
 		Board: make([]int, size*size),
 		Next:  Black,
 		Moves: []Move{},
 	}, nil
+}
+
+// NormalizeStyle keeps older saved games, which have no style, compatible.
+func NormalizeStyle(value string) (string, error) {
+	switch value {
+	case "", "china":
+		return "china", nil
+	case "japan", "korea":
+		return value, nil
+	default:
+		return "", errors.New("请选择中国、日本或韩国棋风")
+	}
 }
 
 // Play applies one legal move. An invalid move leaves the game unchanged.

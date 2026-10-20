@@ -1,11 +1,18 @@
-"use strict";
+import { initializeEngine, runGame } from "./engine.js";
 
 const $ = (id) => document.getElementById(id);
 const board = $("board");
 const storageKey = "yi-game-v1";
 const letters = "ABCDEFGHJKLMNOPQRST";
 const sizeNames = { 9: "九路棋盘", 13: "十三路棋盘", 19: "十九路棋盘" };
-let game = { size: 9, board: Array(81).fill(0), next: 1, moves: [], lastMove: null, captures: { black: 0, white: 0 }, over: false, resigned: 0 };
+const styleDescriptions = {
+  china: "兼顾厚势、连接与攻守平衡。",
+  japan: "重视布局、角边实地与棋形。",
+  korea: "偏好贴身战斗、打吃与主动进攻。",
+};
+let game = { size: 9, style: "china", board: Array(81).fill(0), next: 1, moves: [], lastMove: null, captures: { black: 0, white: 0 }, over: false, resigned: 0 };
+let engineReady = false;
+let engineFailed = false;
 let busy = false;
 let restoreFailed = false;
 let cursor = { x: 4, y: 4 };
@@ -21,7 +28,7 @@ function svg(tag, attributes) {
 function position(n) { return 48 + n * 544 / (game.size - 1); }
 function coordinate(x, y) { return `${letters[x]}${game.size - y}`; }
 function cursorDescription() { return `${coordinate(cursor.x, cursor.y)}，${["空点", "黑棋", "白棋"][game.board[cursor.y * game.size + cursor.x]]}`; }
-function canPlay() { return !busy && !restoreFailed && !game.over && game.next === 1; }
+function canPlay() { return engineReady && !busy && !restoreFailed && !game.over && game.next === 1; }
 
 function draw() {
   const grid = $("grid");
@@ -67,21 +74,28 @@ function preview() {
 
 function render() {
   $("size").value = game.size;
+  $("style").value = game.style;
+  $("style-detail").textContent = styleDescriptions[game.style];
   $("board-size").textContent = sizeNames[game.size];
   $("move-count").textContent = `第 ${game.moves.length} 手`;
   $("black-captures").textContent = game.captures.black;
   $("white-captures").textContent = game.captures.white;
-  $("human-turn").hidden = busy || game.over || restoreFailed;
+  $("human-turn").hidden = !canPlay();
   $("cpu-turn").hidden = !busy;
-  $("undo").disabled = busy || !game.moves.length || restoreFailed;
+  $("undo").disabled = !engineReady || busy || !game.moves.length || restoreFailed;
   $("pass").disabled = !canPlay();
   $("resign").disabled = !canPlay();
-  $("new-game").disabled = busy;
-  $("size").disabled = busy;
+  $("new-game").disabled = !engineReady || busy;
+  $("size").disabled = !engineReady || busy;
+  $("style").disabled = !engineReady || busy || restoreFailed;
   board.setAttribute("aria-disabled", String(!canPlay()));
   let title = "轮到你了";
   let detail = game.lastMove ? `CPU 落在 ${coordinate(game.lastMove.x, game.lastMove.y)}。轮到你执黑。` : "选择一个交叉点，落下第一颗棋子。";
-  if (busy) { title = "正在计算棋局…"; detail = "请稍候，CPU 正在思考。"; }
+  if (!engineReady) {
+    title = engineFailed ? "棋局未能载入" : "正在载入棋局…";
+    detail = engineFailed ? "请刷新页面，重新载入后继续。" : "准备就绪后，即可落子。";
+  }
+  else if (busy) { title = "正在计算棋局…"; detail = "请稍候，CPU 正在思考。"; }
   else if (restoreFailed) { title = "棋局尚未恢复"; detail = "请刷新重试，或点击「新对局」重新开始。"; }
   else if (game.resigned) { title = "白棋获胜"; detail = "你已认输。下一局，重新开始。"; }
   else if (game.over && game.score) {
@@ -102,32 +116,27 @@ function showError(message) {
 }
 
 async function request(payload) {
-  if (busy) return false;
+  if (busy || !engineReady) return false;
   busy = true;
   showError("");
   render();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch("/api/game", { method: "POST", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "这一步没有成功，请重试。");
-    if (![9, 13, 19].includes(data.size) || !Array.isArray(data.board) || data.board.length !== data.size * data.size || !Array.isArray(data.moves) || !data.captures) throw new Error("棋局数据不完整，请刷新后重试。");
+    const data = await runGame({ style: game.style, ...payload });
+    if (![9, 13, 19].includes(data.size) || !Object.hasOwn(styleDescriptions, data.style) || !Array.isArray(data.board) || data.board.length !== data.size * data.size || !Array.isArray(data.moves) || !data.captures) throw new Error("棋局数据不完整，请刷新后重试。");
     game = data;
     restoreFailed = false;
     hover = null;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ size: game.size, moves: game.moves, resigned: game.resigned || 0 }));
+      localStorage.setItem(storageKey, JSON.stringify({ size: game.size, style: game.style, moves: game.moves, resigned: game.resigned || 0 }));
     } catch {
       $("save-note").textContent = "浏览器无法保存，关闭页面后棋局会丢失";
     }
     draw();
     return true;
   } catch (error) {
-    showError(error.name === "AbortError" ? "等待棋局超时，请重试。当前棋局已保留。" : error instanceof TypeError || error instanceof SyntaxError ? "暂时无法连接棋局，请确认服务正在运行后重试。" : error.message);
+    showError(error.message || "这一步没有成功，请重试。当前棋局已保留。");
     return false;
   } finally {
-    clearTimeout(timeout);
     busy = false;
     render();
   }
@@ -194,6 +203,7 @@ $("resign").addEventListener("click", () => {
 });
 $("new-game").addEventListener("click", () => newGame(game.size));
 $("size").addEventListener("change", (event) => newGame(Number(event.target.value)));
+$("style").addEventListener("change", (event) => request({ size: game.size, style: event.target.value, moves: game.moves, resigned: game.resigned || 0, action: "sync" }));
 $("undo").addEventListener("click", () => {
   const count = game.moves.length % 2 === 0 ? 2 : 1;
   request({ size: game.size, moves: game.moves.slice(0, -count), action: "sync" });
@@ -201,10 +211,19 @@ $("undo").addEventListener("click", () => {
 
 async function start() {
   draw();
+  try {
+    await initializeEngine();
+    engineReady = true;
+  } catch (error) {
+    engineFailed = true;
+    showError(error.message || "棋局载入失败，请刷新重试。");
+    render();
+    return;
+  }
   let saved;
   try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch { /* A fresh game still works without browser storage. */ }
-  if (!saved) return;
+  if (!saved) { render(); return; }
   restoreFailed = true;
-  await request({ size: saved.size, moves: saved.moves, resigned: saved.resigned || 0, action: "sync" });
+  await request({ size: saved.size, style: saved.style || "china", moves: saved.moves, resigned: saved.resigned || 0, action: "sync" });
 }
 start();

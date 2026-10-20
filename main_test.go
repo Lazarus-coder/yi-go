@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"yi-go/internal/game"
+	"yi-go/internal/match"
 )
 
 func post(t *testing.T, input any) (*httptest.ResponseRecorder, *game.Game) {
@@ -32,14 +34,14 @@ func post(t *testing.T, input any) (*httptest.ResponseRecorder, *game.Game) {
 
 func TestPlayRestoreAndUndo(t *testing.T) {
 	x, y := 2, 2
-	w, played := post(t, request{Size: 9, Action: "play", X: &x, Y: &y})
+	w, played := post(t, match.Request{Size: 9, Action: "play", X: &x, Y: &y})
 	if played == nil {
 		t.Fatalf("play: %d %s", w.Code, w.Body)
 	}
 	if len(played.Moves) != 2 || played.Board[y*9+x] != game.Black || played.Next != game.Black {
 		t.Fatalf("expected a human move and CPU reply: %+v", played)
 	}
-	_, restored := post(t, request{Size: 9, Action: "sync", Moves: played.Moves})
+	_, restored := post(t, match.Request{Size: 9, Action: "sync", Moves: played.Moves})
 	if restored == nil {
 		t.Fatal("restore failed")
 	}
@@ -48,43 +50,70 @@ func TestPlayRestoreAndUndo(t *testing.T) {
 	if !bytes.Equal(a, b) {
 		t.Fatalf("restore changed game:\n%s\n%s", a, b)
 	}
-	w, _ = post(t, request{Size: 9, Action: "play", Moves: played.Moves, X: &x, Y: &y})
+	w, _ = post(t, match.Request{Size: 9, Action: "play", Moves: played.Moves, X: &x, Y: &y})
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("occupied point accepted: %d", w.Code)
 	}
-	_, undone := post(t, request{Size: 9, Action: "sync", Moves: played.Moves[:0]})
+	_, undone := post(t, match.Request{Size: 9, Action: "sync", Moves: played.Moves[:0]})
 	if undone == nil || len(undone.Moves) != 0 || undone.Board[y*9+x] != game.Empty {
 		t.Fatal("undo did not restore the empty board")
 	}
 }
 
 func TestResignAndRestore(t *testing.T) {
-	w, resigned := post(t, request{Size: 13, Action: "resign"})
+	w, resigned := post(t, match.Request{Size: 13, Action: "resign"})
 	if resigned == nil || !resigned.Over || resigned.Resigned != game.Black || resigned.Score.Winner != game.White {
 		t.Fatalf("resign failed: %d %s", w.Code, w.Body)
 	}
-	_, restored := post(t, request{Size: 13, Action: "sync", Resigned: game.Black})
+	_, restored := post(t, match.Request{Size: 13, Action: "sync", Resigned: game.Black})
 	if restored == nil || !restored.Over || restored.Resigned != game.Black {
 		t.Fatal("resigned game was not restored")
 	}
-	w, _ = post(t, request{Size: 13, Action: "pass", Resigned: game.Black})
+	w, _ = post(t, match.Request{Size: 13, Action: "pass", Resigned: game.Black})
 	if w.Code != http.StatusConflict {
 		t.Fatal("accepted a move after resignation")
+	}
+}
+
+func TestStyleSelectionKeepsHistory(t *testing.T) {
+	x, y := 2, 2
+	w, played := post(t, match.Request{Size: 9, Action: "play", X: &x, Y: &y})
+	if played == nil || played.Style != "china" {
+		t.Fatalf("legacy request should default to china: %d %s", w.Code, w.Body)
+	}
+	for _, style := range []string{"japan", "korea", "china"} {
+		w, changed := post(t, match.Request{Size: 9, Action: "sync", Moves: played.Moves, Style: style})
+		if changed == nil || changed.Style != style || !slices.Equal(changed.Board, played.Board) ||
+			!slices.Equal(changed.Moves, played.Moves) || changed.Captures != played.Captures {
+			t.Fatalf("style change must preserve recorded game: %d %s", w.Code, w.Body)
+		}
+		w, undone := post(t, match.Request{Size: 9, Action: "sync", Style: style})
+		if undone == nil || undone.Style != style || len(undone.Moves) != 0 {
+			t.Fatalf("undo should preserve style: %d %s", w.Code, w.Body)
+		}
+		w, restored := post(t, match.Request{Size: 9, Action: "sync", Style: style, Resigned: game.Black})
+		if restored == nil || restored.Style != style || !restored.Over || restored.Resigned != game.Black {
+			t.Fatalf("style selection should preserve resignation: %d %s", w.Code, w.Body)
+		}
+	}
+	w, _ = post(t, match.Request{Size: 9, Action: "sync", Style: "unknown"})
+	if w.Code != http.StatusBadRequest {
+		t.Fatal("invalid style should be rejected")
 	}
 }
 
 func TestPassAndFinishedGame(t *testing.T) {
 	// A complete recorded game can be restored without invoking the CPU.
 	moves := []game.Move{{X: -1, Y: -1}, {X: -1, Y: -1}}
-	w, g := post(t, request{Size: 9, Action: "sync", Moves: moves})
+	w, g := post(t, match.Request{Size: 9, Action: "sync", Moves: moves})
 	if g == nil || !g.Over || g.Score == nil || g.Score.White != 6.5 {
 		t.Fatalf("two passes: %d %s", w.Code, w.Body)
 	}
-	w, _ = post(t, request{Size: 9, Action: "pass", Moves: moves})
+	w, _ = post(t, match.Request{Size: 9, Action: "pass", Moves: moves})
 	if w.Code != http.StatusConflict {
 		t.Fatal("accepted move after two passes")
 	}
-	w, g = post(t, request{Size: 9, Action: "pass"})
+	w, g = post(t, match.Request{Size: 9, Action: "pass"})
 	if g == nil || len(g.Moves) != 2 || g.Moves[0] != (game.Move{X: -1, Y: -1}) {
 		t.Fatalf("human pass should receive CPU reply: %d %s", w.Code, w.Body)
 	}
@@ -92,7 +121,7 @@ func TestPassAndFinishedGame(t *testing.T) {
 
 func TestInvalidRequests(t *testing.T) {
 	zero, negative, outside := 0, -1, 19
-	cases := []request{
+	cases := []match.Request{
 		{Size: 8, Action: "sync"},
 		{Size: 9, Action: "unknown"},
 		{Size: 9, Action: "play"},
@@ -142,7 +171,7 @@ func TestHTTPBoundary(t *testing.T) {
 }
 
 func TestEmbeddedPage(t *testing.T) {
-	for _, path := range []string{"/", "/style.css", "/app.js"} {
+	for _, path := range []string{"/", "/style.css", "/app.js", "/engine.js"} {
 		w := httptest.NewRecorder()
 		newHandler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != 200 || w.Body.Len() == 0 {

@@ -2,13 +2,31 @@ package game
 
 import "math"
 
-// ChooseMove is a small heuristic opponent, not a search engine. It favors
-// captures, saving groups in atari, and well-spaced stones on the third line.
+type cpuStyle struct {
+	threat                               float64
+	line, ownDistance, enemyDistance     int
+	ownWeight, enemyWeight, cornerWeight float64
+}
+
+// Playful teaching presets, not claims about every player from a country.
+// Distances use grid steps; line is zero-based (2 is the third line).
+var cpuStyles = map[string]cpuStyle{
+	"china": {threat: 12, line: 3, ownDistance: 2, enemyDistance: 3, ownWeight: 2, enemyWeight: 0.8, cornerWeight: 0.08},
+	"japan": {threat: 8, line: 2, ownDistance: 4, enemyDistance: 5, ownWeight: 1.2, enemyWeight: 0.35, cornerWeight: 0.35},
+	"korea": {threat: 20, line: 2, ownDistance: 3, enemyDistance: 1, ownWeight: 1.2, enemyWeight: 2.8, cornerWeight: 0.08},
+}
+
+// ChooseMove is a small heuristic opponent, not a search engine. All styles
+// prioritize captures and saving groups in atari, then favor different shapes.
 // Ties are deterministic so that games and examples are easy to reproduce.
 func (g *Game) ChooseMove() Move {
 	best := Move{-1, -1}
 	if g.Over {
 		return best
+	}
+	style, ok := cpuStyles[g.Style]
+	if !ok {
+		style = cpuStyles["china"]
 	}
 
 	regions := emptyRegions(g.Board, g.Size)
@@ -39,7 +57,7 @@ func (g *Game) ChooseMove() Move {
 		}
 
 		value := 100*float64(captured) + 70*float64(saved) +
-			12*float64(threatened) + g.spacing(point)
+			style.threat*float64(threatened) + g.spacing(point, style)
 		if len(liberties) == 1 {
 			value -= 30 * float64(len(stones))
 		}
@@ -72,11 +90,10 @@ func (g *Game) tactics(point, newLiberties int) (saved, threatened int) {
 	return saved, threatened
 }
 
-func (g *Game) spacing(point int) float64 {
+func (g *Game) spacing(point int, style cpuStyle) float64 {
 	x, y := point%g.Size, point/g.Size
 	edge := min(x, y, g.Size-1-x, g.Size-1-y)
-	// Third-line stones balance territory and room to grow.
-	value := -2 * math.Abs(float64(edge-2))
+	value := -2 * math.Abs(float64(edge-style.line))
 	nearestOwn, nearestEnemy := 2*g.Size, 2*g.Size
 	for other, color := range g.Board {
 		if color == Empty {
@@ -90,14 +107,13 @@ func (g *Game) spacing(point int) float64 {
 		}
 	}
 	if nearestOwn < 2*g.Size {
-		value -= 1.8 * math.Abs(float64(nearestOwn-3))
+		value -= style.ownWeight * math.Abs(float64(nearestOwn-style.ownDistance))
 	}
 	if nearestEnemy < 2*g.Size {
-		value -= 0.8 * math.Abs(float64(nearestEnemy-3))
+		value -= style.enemyWeight * math.Abs(float64(nearestEnemy-style.enemyDistance))
 	}
-	// Prefer a corner's third-line point over drifting along the edge.
 	cornerDistance := min(x, g.Size-1-x) + min(y, g.Size-1-y)
-	value -= 0.08 * float64(cornerDistance)
+	value -= style.cornerWeight * float64(cornerDistance)
 	return value
 }
 
