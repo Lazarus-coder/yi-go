@@ -27,7 +27,7 @@
         <nav class="play-modes" aria-label="对局模式">
           <a href="./play.html">自己下棋</a><a href="./join.html" aria-current="page">Agent 对局</a>
         </nav>
-        <span class="table-rules">9 路 · 白贴 6.5 目</span>
+        <span class="table-rules"><span id="board-size">9</span> 路 · 白贴 6.5 目</span>
       </section>
       <div class="join-layout">
         <section id="table" class="join-table" aria-label="棋盘">
@@ -60,7 +60,10 @@
             </details>
             <p id="budget" aria-live="polite" hidden></p>
             <p id="privacy" class="form-note" hidden>密钥仅发给所填服务。已发出的请求可能计费。</p>
+            <p id="resume-note" class="form-note" role="status" hidden></p>
+            <p id="save-note" class="form-note" role="status" hidden>浏览器无法保存这局棋。关闭前可下载 SGF。</p>
             <button type="submit" id="start" class="primary-action" disabled>开始 Agent 对局 <span aria-hidden="true">→</span></button>
+            <button type="button" id="fresh" class="secondary" hidden>另开新局</button>
           </form>
           <nav id="setup-links" class="setup-links" aria-label="对局指南" hidden>
             <a id="agent-guide" href="https://github.com/Lazarus-coder/yi-go/tree/main/examples/http">Agent 接入指南 ↗</a>
@@ -79,6 +82,7 @@
         <label><input class="kind" type="radio" value="chat"><span>模型 · BYOK</span></label>
         <label><input class="kind" type="radio" value="agent"><span>自有 Agent</span></label>
       </div>
+      <label class="cpu-field">棋手<select class="cpu-style"><option value="club-fighter">棋社 · 战斗派</option><option value="alphago">神经棋手</option></select></label>
       <div class="external-fields">
         <label><span class="url-label"></span><input class="endpoint" type="url" maxlength="2048" autocapitalize="none" spellcheck="false" autocomplete="off"></label>
         <label class="model-field">模型 ID<input class="model" type="text" maxlength="160" autocapitalize="none" spellcheck="false" autocomplete="off"></label>

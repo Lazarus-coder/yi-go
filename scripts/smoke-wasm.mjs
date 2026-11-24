@@ -65,4 +65,12 @@ assert.deepEqual(inspect(["D4","resign"]).result, { reason: "resign", winner: "b
 assert.equal(inspect(["D4","E5"], 2).result.reason, "move-cap");
 assert.ok(inspect(["pass", "pass", "A1"]).error);
 assert.ok(inspect([],145).error);
+const fork = JSON.parse(globalThis.yiExhibition(JSON.stringify({
+  size: 13, history: ["N13"], startPly: 1, maxMoves: 3, chooseCPU: true, style: "alphago",
+})));
+assert.equal(fork.turn.board.length, 169);
+assert.equal(fork.turn.color, "white");
+assert.equal(fork.turn.remainingMoves, 2);
+assert.equal(fork.game.style, "alphago");
+assert.ok(fork.turn.legal.includes(fork.choice) && fork.choice !== "pass");
 console.log("Public exhibition WASM referee passed two-seat play, CPU, passes, resignation, move cap and illegal replay checks.");

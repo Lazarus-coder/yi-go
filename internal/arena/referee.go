@@ -162,6 +162,7 @@ func runGame(ctx context.Context, config Config, pair pairing) (record GameRecor
 				return record, err
 			}
 			record.Result = forfeited(g, record, index+1, refereeFault(err), "startup", nil)
+			record.DecisionError = err
 			return record, nil
 		}
 	}
@@ -176,6 +177,7 @@ func runGame(ctx context.Context, config Config, pair pairing) (record GameRecor
 				return record, moveErr
 			}
 			record.Result = forfeited(g, record, g.Next, refereeFault(moveErr), "turn", nil)
+			record.DecisionError = moveErr
 			break
 		}
 		if decision.Resign {
@@ -186,6 +188,7 @@ func runGame(ctx context.Context, config Config, pair pairing) (record GameRecor
 		}
 		if moveErr := g.Play(decision.Move); moveErr != nil {
 			record.Result = forfeited(g, record, g.Next, "illegal-move", "turn", &decision.Move)
+			record.DecisionError = moveErr
 			break
 		}
 		record.Frames = append(record.Frames, frame(g))

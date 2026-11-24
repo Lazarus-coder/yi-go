@@ -1,4 +1,5 @@
 import { renderBoard } from "./board.js";
+import { forkLink } from "./replay-fork.js";
 
 const $ = (id) => document.getElementById(id);
 const columns = "ABCDEFGHJKLMNOPQRST";
@@ -14,7 +15,8 @@ let report,
   ply = 0,
   previous,
   timer,
-  loading = false;
+  reportFile,
+  loadID = 0;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -157,6 +159,36 @@ function gameHash(game, position) {
   return `#${new URLSearchParams({ game: game.id, ply: String(position) })}`;
 }
 
+function capturedAt(game, n) {
+  if (!n) return 0;
+  const color = n % 2 ? "black" : "white";
+  return game.frames[n].captures[color] - game.frames[n - 1].captures[color];
+}
+
+function markCaptures(game) {
+  const marks = $("capture-marks"), jump = $("capture-jump");
+  marks.replaceChildren();
+  const prompt = element("option", "", "提子");
+  prompt.value = "";
+  jump.replaceChildren(prompt);
+  const captures = [];
+  for (let n = 1; n < game.frames.length; n++) {
+    const count = capturedAt(game, n);
+    if (count <= 0) continue;
+    const tick = element("option");
+    tick.value = n;
+    marks.append(tick);
+    captures.push({ n, count });
+  }
+  // Largest captures come first in the menu; ticks stay in move order.
+  for (const { n, count } of captures.sort((a, b) => b.count - a.count)) {
+    const option = element("option", "", `第 ${n} 手 · ${n % 2 ? "黑" : "白"}提 ${count} 子`);
+    option.value = n;
+    jump.append(option);
+  }
+  jump.disabled = captures.length === 0;
+}
+
 function renderOverview() {
   $("run-title").textContent = report.config.title || "围棋联赛";
   $("player-count").textContent = report.players.length;
@@ -258,7 +290,9 @@ function seek(position, animate = false, updateURL = true) {
   const last = ply
     ? `${ply % 2 ? "黑" : "白"} · ${point}${ply <= active.openingPlies ? " · 预置开局" : ""}`
     : "黑先";
-  $("move-detail").textContent = last;
+  const captured = capturedAt(active, ply);
+  $("move-detail").textContent = captured ? `${last} · 提 ${captured} 子` : last;
+  $("capture-jump").value = "";
   $("black-captures").textContent = game.captures.black;
   $("white-captures").textContent = game.captures.white;
   $("board").setAttribute(
@@ -268,6 +302,10 @@ function seek(position, animate = false, updateURL = true) {
   $("result").textContent = outcome(active);
   $("result-detail").textContent = reasonText(active);
   $("game-link").href = gameHash(active, ply);
+  const fork = $("fork-link");
+  fork.hidden = ply === active.moves.length && active.result.reason === "passes";
+  if (fork.hidden) fork.removeAttribute("href");
+  else fork.href = forkLink(active.size, game.moves);
   if (updateURL) history.replaceState(null, "", gameHash(active, ply));
   if (ply === active.moves.length) pause();
   else if (!timer) $("toggle").textContent = "播放";
@@ -280,6 +318,7 @@ function selectGame(game, position) {
   $("white-name").textContent = playerName(game.white);
   $("game-label").textContent = `回放 · 第 ${report.games.indexOf(game) + 1} 局`;
   $("seek").max = game.moves.length;
+  markCaptures(game);
   $("board-loading").hidden = true;
   for (const link of document.querySelectorAll(".match-row")) {
     if (link.dataset.game === game.id) link.setAttribute("aria-current", "true");
@@ -319,20 +358,40 @@ function route(scroll = false) {
     });
 }
 
-async function loadReport() {
-  if (loading) return;
-  loading = true;
+async function loadReport(file = null) {
+  const id = ++loadID;
   $("data-error").hidden = true;
   $("retry").disabled = true;
   $("arena-content").setAttribute("aria-busy", "true");
   try {
-    const response = await fetch("./report.json", { cache: "no-cache", signal: AbortSignal.timeout(10000) });
-    if (!response.ok) throw new Error("运行报告暂时无法读取，请稍后重试。");
-    report = validateReport(await response.json());
+    let value;
+    if (file) {
+      if (file.size > 128 * 1024 * 1024) throw new Error("战报文件超过 128 MiB。");
+      value = JSON.parse(await file.text());
+    } else {
+      const response = await fetch("./report.json", { cache: "no-cache", signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error("运行报告暂时无法读取，请稍后重试。");
+      value = await response.json();
+    }
+    if (id !== loadID) return;
+    report = validateReport(value);
+    pause();
+    active = previous = null;
+    reportFile = file;
+    $("published-links").hidden = $("game-link").hidden = !!file;
+    $("arena-content").hidden = false;
+    $("replay").hidden = report.games.length === 0;
+    $("league-metadata").hidden = false;
     renderOverview();
-    route();
-    if (!report.games.length) $("board-loading").textContent = "暂无棋谱";
+    if (file) {
+      history.replaceState(null, "", "?open=1");
+      $("league-details").open = false;
+      if (report.games.length) selectGame(report.games[0], 0);
+      $("run-title").scrollIntoView({ block: "start" });
+    } else route();
   } catch (error) {
+    if (id !== loadID) return;
+    $("raw-report").hidden = !!file;
     $("error-message").textContent =
       error.name === "TimeoutError"
         ? "读取战报超时，请重试。"
@@ -342,14 +401,25 @@ async function loadReport() {
     $("data-error").hidden = false;
     $("board-loading").textContent = "战报尚未载入";
   } finally {
-    loading = false;
-    $("retry").disabled = false;
-    $("arena-content").setAttribute("aria-busy", "false");
+    if (id === loadID) {
+      $("retry").disabled = false;
+      $("arena-content").setAttribute("aria-busy", "false");
+    }
   }
 }
 
 function start() {
-  $("retry").addEventListener("click", loadReport);
+  const picker = $("report-file");
+  $("retry").addEventListener("click", () => loadReport(picker.files[0] || reportFile));
+  picker.addEventListener("change", () => {
+    if (picker.files[0]) loadReport(picker.files[0]);
+  });
+  $("capture-jump").addEventListener("change", event => {
+    if (event.target.value) {
+      pause();
+      seek(Number(event.target.value), true);
+    }
+  });
   $("first").addEventListener("click", () => {
     pause();
     seek(0);
@@ -407,7 +477,13 @@ function start() {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pause();
   });
-  loadReport();
+  if (new URLSearchParams(location.search).get("open") === "1") {
+    $("league-details").open = true;
+    $("arena-content").hidden = true;
+    $("league-metadata").hidden = true;
+    $("run-title").textContent = "本地战报";
+    picker.focus();
+  } else loadReport();
 }
 
 if (typeof document !== "undefined") start();

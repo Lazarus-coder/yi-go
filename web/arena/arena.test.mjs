@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
+import { forkLink, readFork } from "../replay-fork.js";
 
-const source = (await readFile(new URL("./arena.js", import.meta.url), "utf8")).replace(/^import .*\n/, "");
+const source = (await readFile(new URL("./arena.js", import.meta.url), "utf8")).replace(/^import .*\n/gm, "");
 const hooks =
   "\nglobalThis.api = { validateReport, frameGame, replayLocation, gameHash, outcome, reasonText };";
 const pure = vm.runInNewContext(source + hooks + "\napi", { URLSearchParams, Intl });
@@ -157,7 +158,7 @@ test("forfeits and resignation never invent a points margin", () => {
   assert.match(pure.reasonText(game), /手数上限/);
 });
 
-function domHarness(data, failFirst = false, hash = "") {
+function domHarness(data, failFirst = false, hash = "", search = "") {
   const nodes = new Map(),
     events = {},
     intervals = new Map(),
@@ -174,6 +175,8 @@ function domHarness(data, failFirst = false, hash = "") {
       value: "",
       disabled: false,
       hidden: false,
+      files: [],
+      focus() { this.focused = true; },
       append(...children) {
         this.children.push(...children);
       },
@@ -206,6 +209,7 @@ function domHarness(data, failFirst = false, hash = "") {
       },
     },
     renderBoard: (...args) => draws.push(args),
+    forkLink,
     URLSearchParams,
     Intl,
     AbortSignal: { timeout() {} },
@@ -216,7 +220,7 @@ function domHarness(data, failFirst = false, hash = "") {
       }
       return { ok: true, json: async () => data };
     },
-    location: { hash },
+    location: { hash, search },
     history: {
       replaceState(a, b, value) {
         context.location.hash = value;
@@ -282,6 +286,76 @@ test("selecting the same game again brings the replay back into view", async () 
   assert.equal(prevented, true);
   assert.equal(app.nodes.get("replay").scrolls, 1);
   assert.equal(app.nodes.get("ply").textContent, "0 / 3 手");
+});
+
+test("fork URLs round-trip board sizes, coordinates, and passes, and reject malformed histories", () => {
+  for (const size of [9, 13, 19]) {
+    const url = forkLink(size, [{x:size-1,y:size-1}, {x:-1,y:-1}, {x:0,y:0}]);
+    const lastColumn = {9:"J",13:"N",19:"T"}[size];
+    assert.deepEqual(readFork(new URL(url, "https://example.com/yi/").hash),
+      { size, moves:[lastColumn+"1","pass","A"+size] });
+  }
+  assert.deepEqual(readFork("#fork=9&moves="), {size:9, moves:[]});
+  assert.equal(readFork("#game=some-game&ply=1"), null);
+  for (const hash of ["#fork=10&moves=", "#fork=9", "#fork=9&moves=A1,I2", "#fork=13&moves=A14",
+    "#fork=9&moves=K9", "#fork=9&moves=pass,", "#fork=9&moves=resign", "#fork=9&moves=A01",
+    "#fork=9&fork=19&moves=", "#fork=9&moves=D4&moves=Q16", "#fork=9&moves="+Array(2001).fill("D1").join(",")]) {
+    assert.throws(() => readFork(hash));
+  }
+});
+
+test("published capture timeline leads to an exact fork before the 54-stone capture", async () => {
+  const data = JSON.parse(await readFile(new URL("./report.json", import.meta.url), "utf8"));
+  const app = domHarness(data, false, "#game=g-000001&ply=0");
+  await flush();
+  const nodes = app.nodes;
+  const jump = nodes.get("capture-jump");
+  const biggest = jump.children[1];
+  assert.equal(biggest.textContent, "第 140 手 · 白提 54 子");
+  assert.ok(nodes.get("capture-marks").children.some(tick => tick.value === 140));
+  jump.handlers.change({ target:biggest });
+  assert.match(nodes.get("move-detail").textContent, /白 · D1 · 提 54 子/);
+  nodes.get("prev").handlers.click();
+  const opening = readFork(new URL(nodes.get("fork-link").href, "https://example.com/yi/").hash);
+  const published = data.games[0];
+  assert.deepEqual(opening.moves, published.moves.slice(0,139).map(move =>
+    move.x < 0 ? "pass" : "ABCDEFGHJ"[move.x]+(9-move.y)));
+  nodes.get("last").handlers.click();
+  assert.equal(nodes.get("fork-link").hidden, false, "a timed-off position can be continued");
+  app.context.location.hash = "#game=g-000003&ply=108";
+  app.events.hashchange();
+  assert.equal(nodes.get("fork-link").hidden, true, "two passes ended this position");
+  nodes.get("prev").handlers.click();
+  assert.equal(nodes.get("fork-link").hidden, false);
+});
+
+test("file viewer opens a local report without fetching or linking it to a published game", async () => {
+  const app = domHarness(fixture(), false, "", "?open=1");
+  const nodes = app.nodes;
+  const picker = nodes.get("report-file");
+  assert.equal(picker.focused, true);
+  assert.equal(nodes.get("league-details").open, true);
+  assert.equal(nodes.get("arena-content").hidden, true);
+  assert.equal(app.draws.length, 0);
+  app.context.fetch = () => assert.fail("private file must stay in the browser");
+  let read = false;
+  picker.files = [{ size:129*1024*1024, text:() => { read = true; } }];
+  picker.handlers.change();
+  await flush();
+  assert.match(nodes.get("error-message").textContent, /128 MiB/);
+  assert.equal(read, false);
+  const privateReport = fixture();
+  privateReport.config.title = "Local agent run";
+  picker.files = [new Blob([JSON.stringify(privateReport)])];
+  picker.handlers.change();
+  await flush();
+  assert.equal(nodes.get("run-title").textContent, "Local agent run");
+  assert.equal(nodes.get("game-link").hidden, true);
+  assert.equal(nodes.get("published-links").hidden, true);
+  assert.equal(nodes.get("arena-content").hidden, false);
+  assert.equal(nodes.get("ply").textContent, "0 / 3 手");
+  nodes.get("next").handlers.click();
+  assert.deepEqual(readFork(new URL(nodes.get("fork-link").href, "https://example.com").hash).moves, ["D4"]);
 });
 
 test("failed report loading exposes retry and successful retry renders real data", async () => {

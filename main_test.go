@@ -171,7 +171,7 @@ func TestHTTPBoundary(t *testing.T) {
 }
 
 func TestEmbeddedPage(t *testing.T) {
-	for _, path := range []string{"/", "/arena.css", "/arena.js", "/report.json", "/play.html", "/style.css", "/app.js", "/engine.js", "/join.html", "/join.css", "/join.js", "/open-players.js", "/open-referee.js"} {
+	for _, path := range []string{"/", "/arena.css", "/arena.js", "/report.json", "/play.html", "/style.css", "/app.js", "/engine.js", "/join.html", "/join.css", "/join.js", "/open-players.js", "/open-referee.js", "/replay-fork.js", "/exhibition-save.js"} {
 		w := httptest.NewRecorder()
 		newHandler(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != 200 || w.Body.Len() == 0 {

@@ -80,6 +80,9 @@ type GameRecord struct {
 	Result       Result      `json:"result"`
 	DurationMS   int64       `json:"durationMS"`
 	SHA256       string      `json:"sha256"`
+
+	// DecisionError explains a local forfeit without publishing process diagnostics.
+	DecisionError error `json:"-"`
 }
 
 type Standing struct {

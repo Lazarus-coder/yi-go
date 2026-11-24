@@ -34,7 +34,7 @@ func Analyze(input AnalysisRequest) (AnalysisResult, error) {
 	if err != nil {
 		return AnalysisResult{}, err
 	}
-	if position.Over || position.Next != game.White {
+	if !input.Request.cpuToMove(position) {
 		return AnalysisResult{Game: position}, nil
 	}
 	config := position.SearchConfig()
@@ -70,7 +70,7 @@ func Merge(input MergeRequest) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if position.Over || position.Next != game.White || position.SearchConfig().Roots == 0 {
+	if !input.Request.cpuToMove(position) || position.SearchConfig().Roots == 0 {
 		return nil, errors.New("当前棋局无需合并搜索结果")
 	}
 	move, err := position.MergeSearch(input.Analyses)

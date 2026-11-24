@@ -38,6 +38,9 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   border-radius: 4px; background: #1a2925; color: var(--ink); font: inherit; font-size: 13px;
 }
 .external-fields input::placeholder { color: #9fa895; }
+.cpu-field { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; color:var(--muted); font-size:12px; }
+.cpu-style { padding:5px; min-height:40px; background:#1a2925; border:1px solid var(--line); border-radius:4px; color:var(--ink); font:inherit; }
+#fresh { margin-top:8px; }
 .limits { margin: 16px 0 10px; }
 .limits summary { width: fit-content; padding: 5px 0; cursor: pointer; }
 .limits fieldset { padding: 5px 0; }

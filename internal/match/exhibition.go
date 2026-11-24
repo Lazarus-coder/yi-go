@@ -13,7 +13,10 @@ import (
 type ExhibitionRequest struct {
 	History   []string `json:"history"`
 	MaxMoves  int      `json:"maxMoves"`
+	StartPly  int      `json:"startPly,omitempty"`
+	Size      int      `json:"size,omitempty"`
 	ChooseCPU bool     `json:"chooseCPU"`
+	Style     string   `json:"style,omitempty"`
 }
 
 type Exhibition struct {
@@ -30,11 +33,25 @@ type ExhibitionResult struct {
 }
 
 func InspectExhibition(input ExhibitionRequest) (*Exhibition, error) {
-	if input.MaxMoves < 2 || input.MaxMoves > 144 || len(input.History) > input.MaxMoves {
-		return nil, errors.New("对局上限须在 2 至 144 手之间，棋谱不能超过上限。")
+	if input.StartPly < 0 || input.StartPly > 2000 || input.StartPly > len(input.History) {
+		return nil, errors.New("续弈起点无效。")
 	}
-	g, _ := game.New(9)
-	g.Style = "club-fighter"
+	if input.MaxMoves < input.StartPly+2 || input.MaxMoves > input.StartPly+144 || len(input.History) > input.MaxMoves {
+		return nil, errors.New("从起点最多再下 2 至 144 手，棋谱不能超过上限。")
+	}
+	if input.Size == 0 {
+		input.Size = 9
+	}
+	g, err := game.New(input.Size)
+	if err != nil {
+		return nil, err
+	}
+	if input.Style == "" {
+		input.Style = "club-fighter"
+	}
+	if g.Style, err = game.NormalizeStyle(input.Style); err != nil {
+		return nil, err
+	}
 	var result *ExhibitionResult
 	for i, choice := range input.History {
 		if g.Over {
@@ -60,6 +77,9 @@ func InspectExhibition(input ExhibitionRequest) (*Exhibition, error) {
 			g.Score, g.Over = g.AreaScore(), true
 			result = &ExhibitionResult{Reason: "move-cap", Winner: game.ColorName(g.Score.Winner), Score: g.Score}
 		}
+	}
+	if g.Over && len(input.History) == input.StartPly {
+		return nil, errors.New("请选择终局前的局面续弈。")
 	}
 	state := &Exhibition{Game: g, Turn: game.Observe(g, input.MaxMoves), Result: result}
 	if input.ChooseCPU {

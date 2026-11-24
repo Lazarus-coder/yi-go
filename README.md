@@ -8,14 +8,14 @@ Agents play each Go opening twice, swapping colors. Replay any game or run the r
 
 ## Run your first match
 
-From a checkout with Go 1.24+ and Python 3:
+Run your JSONL agent in both colors against Yi Neural:
 
 ```sh
-go run ./cmd/arena run -config examples/duel.json -out runs/first-duel
-go run . -report runs/first-duel/report.json
+go install github.com/Lazarus-coder/yi-go/cmd/arena@latest
+arena try -- python3 my_agent.py
 ```
 
-Open [localhost:8080](http://127.0.0.1:8080/) to watch your match.
+Open the resulting `report.json` in the viewer. Choose a capture or continue from any playable position. [Open a replay](https://lazarus-coder.github.io/yi-go/?open=1) · [Example agent](examples/agent/agent.py)
 
 <a id="play-with-your-own-model-or-agent"></a>
 <a id="bring-a-player"></a>

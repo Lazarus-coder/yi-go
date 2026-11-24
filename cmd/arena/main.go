@@ -26,9 +26,11 @@ func main() {
 
 func execute(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: arena run -config config.json -out output | arena verify -report report.json [-config reviewed.json]")
+		return errors.New("usage: arena try [-out directory] -- command [args...] | arena run -config config.json -out output | arena verify -report report.json [-config reviewed.json]")
 	}
 	switch args[0] {
+	case "try":
+		return tryAgent(ctx, args[1:])
 	case "run":
 		flags := flag.NewFlagSet("run", flag.ContinueOnError)
 		configPath := flags.String("config", "", "private tournament configuration")
@@ -48,51 +50,8 @@ func execute(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(*out, 0755); err != nil {
-			return err
-		}
-		lockPath := filepath.Join(*out, ".arena.lock")
-		lock, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if err != nil {
-			return fmt.Errorf("output directory is already in use; choose a new directory: %w", err)
-		}
-		lock.Close()
-		defer os.Remove(lockPath)
-		if _, err := os.Stat(filepath.Join(*out, "report.json")); err == nil {
-			return errors.New("report already exists; use a new output directory")
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		records := filepath.Join(*out, "games")
-		if err := os.MkdirAll(records, 0755); err != nil {
-			return err
-		}
-		entries, err := os.ReadDir(records)
-		if err != nil {
-			return err
-		}
-		if len(entries) != 0 {
-			return errors.New("game records already exist; use a new output directory")
-		}
-		report, err := arena.Run(ctx, config, func(record arena.GameRecord) error {
-			if err := writeRecord(filepath.Join(records, record.ID+".json"), record); err != nil {
-				return err
-			}
-			fmt.Printf("%s  %s vs %s  %s  winner=%s\n", record.ID, record.Black, record.White, record.Result.Reason, record.Result.Winner)
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		if err := arena.Verify(report, &config); err != nil {
-			return fmt.Errorf("refusing to publish an invalid report: %w", err)
-		}
-		path := filepath.Join(*out, "report.json")
-		if err := writeReport(path, report); err != nil {
-			return err
-		}
-		fmt.Printf("Verified %d games. Report: %s\n", len(report.Games), path)
-		return nil
+		_, err = runTournament(ctx, config, *out)
+		return err
 	case "verify":
 		flags := flag.NewFlagSet("verify", flag.ContinueOnError)
 		path := flags.String("report", "", "public report.json to replay and verify")
@@ -133,6 +92,54 @@ func execute(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func runTournament(ctx context.Context, config arena.Config, out string) (*arena.Report, error) {
+	if err := os.MkdirAll(out, 0755); err != nil {
+		return nil, err
+	}
+	lockPath := filepath.Join(out, ".arena.lock")
+	lock, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("output directory is already in use; choose a new directory: %w", err)
+	}
+	lock.Close()
+	defer os.Remove(lockPath)
+	if _, err := os.Stat(filepath.Join(out, "report.json")); err == nil {
+		return nil, errors.New("report already exists; use a new output directory")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	records := filepath.Join(out, "games")
+	if err := os.MkdirAll(records, 0755); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(records)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) != 0 {
+		return nil, errors.New("game records already exist; use a new output directory")
+	}
+	report, err := arena.Run(ctx, config, func(record arena.GameRecord) error {
+		if err := writeRecord(filepath.Join(records, record.ID+".json"), record); err != nil {
+			return err
+		}
+		fmt.Printf("%s  %s vs %s  %s  winner=%s\n", record.ID, record.Black, record.White, record.Result.Reason, record.Result.Winner)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := arena.Verify(report, &config); err != nil {
+		return nil, fmt.Errorf("refusing to publish an invalid report: %w", err)
+	}
+	path := filepath.Join(out, "report.json")
+	if err := writeReport(path, report); err != nil {
+		return nil, err
+	}
+	fmt.Printf("Verified %d games. Report: %s\n", len(report.Games), path)
+	return report, nil
 }
 
 func writeRecord(path string, record arena.GameRecord) error {

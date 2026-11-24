@@ -83,7 +83,7 @@ func newHandler(report *arena.Report) http.Handler {
 			showcase.ServeHTTP(w, r)
 		case "/play.html", "/style.css", "/app.js", "/engine.js", "/board.js", "/board.css", "/kaya.jpg",
 			"/watch.html", "/watch.js", "/exhibition.js",
-			"/join.html", "/join.css", "/join.js", "/open-referee.js", "/open-players.js":
+			"/join.html", "/join.css", "/join.js", "/open-referee.js", "/open-players.js", "/replay-fork.js", "/exhibition-save.js":
 			static.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)

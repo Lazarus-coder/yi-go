@@ -143,7 +143,9 @@ export async function runGame(payload) {
     await initializeEngine();
     let game;
     try {
-      const search = !parallelDisabled && workerLimit() > 1 && searchOpponents.has(payload.style) && (payload.action === "play" || payload.action === "pass");
+      const needsAnalysis = payload.action === "cpu" ||
+        (searchOpponents.has(payload.style) && (payload.action === "play" || payload.action === "pass"));
+      const search = !parallelDisabled && workerLimit() > 1 && needsAnalysis;
       game = search ? await parallelSearch(payload) : (await primary.request("run", payload)).game;
     } catch (error) {
       if (!error.workerFailure) throw error;

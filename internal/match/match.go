@@ -43,7 +43,7 @@ func Run(input Request) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if result.Over || result.Next != game.White {
+	if !input.cpuToMove(result) {
 		return result, nil
 	}
 	move, searched := result.ChooseMoveWithStats()
@@ -52,6 +52,11 @@ func Run(input Request) (*Result, error) {
 		stats = &SearchStats{Workers: searched.Workers, Depth: searched.Depth}
 	}
 	return applyReply(result, move, stats)
+}
+
+// An exhibition may seat a CPU on either side. Human practice owns Black.
+func (input Request) cpuToMove(position *Result) bool {
+	return !position.Over && (input.Action == "cpu" || position.Next == game.White)
 }
 
 // Both native and merged worker choices pass through the authoritative rules.
@@ -71,6 +76,10 @@ func prepare(input Request) (*Result, error) {
 		return nil, err
 	}
 	switch input.Action {
+	case "cpu":
+		if g.Over {
+			return nil, ErrTurn
+		}
 	case "sync":
 		// Changing style preserves every recorded move and affects future turns.
 	case "play", "pass", "resign":
@@ -112,8 +121,12 @@ func restore(input Request) (*game.Game, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(input.Moves) > 2000 {
-		return nil, errors.New("棋谱超过示范版的 2000 手上限")
+	maxHistory := 2000
+	if input.Action == "cpu" {
+		maxHistory += 143 // A fork can request its final reply at ply 2000 + 144 - 1.
+	}
+	if len(input.Moves) > maxHistory {
+		return nil, fmt.Errorf("棋谱超过 %d 手上限", maxHistory)
 	}
 	g, err := game.New(input.Size)
 	if err != nil {
@@ -125,7 +138,7 @@ func restore(input Request) (*game.Game, error) {
 			return nil, fmt.Errorf("棋谱第 %d 手无效：%w", i+1, err)
 		}
 	}
-	if !g.Over && g.Next != game.Black {
+	if input.Action != "cpu" && !g.Over && g.Next != game.Black {
 		return nil, errors.New("棋谱缺少 CPU 应手，请使用完整回合的记录")
 	}
 	if input.Resigned != 0 {

@@ -2,6 +2,8 @@
 
 Choose **BYOK** for either color at the [agent table](https://lazarus-coder.github.io/yi-go/join.html). Enter the provider’s Chat Completions base URL, model ID and key. Each turn goes directly to that provider. Stopping prevents further requests. A provider can still charge for a request already received.
 
+The browser saves accepted moves and seat settings on this device. After a refresh, re-enter your key and select **继续** to resume. If a request was interrupted, continuing retries that turn and the provider may charge again.
+
 ## From the terminal
 
 Use this path if your provider blocks browser requests. From the repository root in Bash or Zsh, substitute your provider and model. Paste the key at the hidden prompt.

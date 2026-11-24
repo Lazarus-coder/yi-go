@@ -1,9 +1,9 @@
-import { inspectExhibition } from "./engine.js";
+import { inspectExhibition, runGame } from "./engine.js";
 
 // Each request is self-contained, so independent games may share one WASM worker.
-export async function createReferee(maxMoves = 80) {
-  const request = (history, chooseCPU = false) => inspectExhibition({ history, maxMoves, chooseCPU });
-  let state = await request([]);
+export async function createReferee(maxMoves = 80, { size = 9, history = [], startPly = 0 } = {}) {
+  const request = moves => inspectExhibition({ history: moves, size, maxMoves, startPly });
+  let state = await request(history);
   return {
     turn: () => state.turn,
     snapshot: () => state.game,
@@ -15,9 +15,11 @@ export async function createReferee(maxMoves = 80) {
       if (state !== previous) throw new Error("这手棋已经提交。");
       state = next;
     },
-    async cpu() {
+    async cpu(style = "club-fighter") {
       if (state.result) throw new Error("本局已结束");
-      return (await request(state.turn.history, true)).choice;
+      const reply = await runGame({ size, moves: state.game.moves, style, action: "cpu" });
+      const point = reply.lastMove;
+      return point ? "ABCDEFGHJKLMNOPQRST"[point.x] + (size - point.y) : "pass";
     },
   };
 }

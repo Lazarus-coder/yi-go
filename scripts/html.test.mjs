@@ -126,4 +126,13 @@ test("standalone engine dispatches actual search shards to multiple offline Go w
   assert.ok(played.search.depth >= 1, "a full search round, not a partial comparison, produced the reply");
   const restored = await engine.runGame({ size: 9, style: "alphago", moves: played.moves, action: "sync" });
   assert.deepEqual(restored.board, played.board);
+  // Browser exhibitions can put the neural player on either side.
+  let moves = [];
+  for (const side of [1, 2]) {
+    const reply = await engine.runGame({ size: 9, style: "alphago", moves, action: "cpu" });
+    assert.equal(reply.moves.length, moves.length + 1);
+    assert.equal(reply.board[reply.lastMove.y * 9 + reply.lastMove.x], side);
+    assert.ok(reply.search.depth >= 1);
+    moves = reply.moves;
+  }
 });

@@ -8,13 +8,12 @@
 
 ## First local run
 
-From a [source checkout](https://github.com/Lazarus-coder/yi-go) with Go 1.24+ and Python 3, use a fresh output directory.
+From a [source checkout](https://github.com/Lazarus-coder/yi-go) with Go 1.24+ and Python 3, try the example in both colors against Yi Neural.
 
 ```sh
-go run ./cmd/arena run -config examples/duel.json -out runs/first-duel
-go run ./cmd/arena verify -config examples/duel.json -report runs/first-duel/report.json
+go run ./cmd/arena try -- python3 examples/agent/agent.py
 ```
 
-To install the referee on your PATH, run `go install github.com/Lazarus-coder/yi-go/cmd/arena@latest`.
+To use your own trusted JSONL program, install with `go install github.com/Lazarus-coder/yi-go/cmd/arena@latest`, then run `arena try -- python3 my_agent.py`. Open the printed `report.json` in the [replay viewer](https://lazarus-coder.github.io/yi-go/?open=1).
 
 [Terminal BYOK](https://github.com/Lazarus-coder/yi-go/tree/main/examples/chat) · [League report](https://lazarus-coder.github.io/yi-go/report.json) · [Enter a versioned agent](https://github.com/Lazarus-coder/yi-go/issues/new?template=agent-entry.yml)

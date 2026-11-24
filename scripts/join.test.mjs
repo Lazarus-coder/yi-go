@@ -66,3 +66,51 @@ test("standard SGF uses Go coordinates, distinct pass and resignation, and allow
   record.result = {winner:"white", reason:"passes", score:{margin:6.5}};
   assert.match(makeSGF(record), /RE\[W\+6.5\]/);
 });
+
+test("a restored paid turn requires explicit play and reuses its original game and request ID", async () => {
+  const {encodeGame, decodeGame} = await import("../web/exhibition-save.js");
+  const {ref, record, accepted} = game({black:"chat", white:"agent"});
+  const id = "ab".repeat(16);
+  Object.assign(record, {gameId:id, size:9, startPly:0, pending:null, seats:{
+    black:{kind:"chat", endpoint:"https://model.example/v1", model:"example", needsKey:true, key:"chat-secret"},
+    white:{kind:"agent", endpoint:"https://agent.example/turn", needsKey:false, key:"agent-secret"},
+  }});
+  let saved, failedTurn;
+  const persist = () => { saved = encodeGame(record); };
+  const controller = new AbortController();
+  await assert.rejects(playGame(ref, {
+    black:{choose:async () => "D4"},
+    white:{choose:async turn => { failedTurn = turn; throw Error("interrupted"); }},
+  }, record, controller.signal, persist, persist), /interrupted/);
+  assert.deepEqual(accepted, ["D4"]);
+  assert.doesNotMatch(saved, /chat-secret|agent-secret/);
+  const restored = decodeGame(saved, id);
+  assert.equal(restored.seats.black.needsKey, true);
+  assert.equal(restored.seats.white.needsKey, false);
+  assert.equal(restored.pending, "white");
+  assert.deepEqual(restored.moves, ["D4"]);
+  assert.deepEqual(restored.calls, {black:1, white:1});
+  assert.throws(() => decodeGame(saved, "cd".repeat(16)));
+  assert.throws(() => decodeGame(saved.replace('"moves":["D4"]', '"moves":["bad"]'), id));
+  const turns = [];
+  const player = {async choose(turn) { turns.push(turn); return "pass"; }};
+  await playGame(ref, {black:player, white:player}, restored, controller.signal, () => {}, () => {});
+  assert.deepEqual(turns[0], failedTurn);
+  assert.deepEqual(restored.calls, {black:2, white:2});
+  assert.deepEqual(restored.moves, ["D4","pass","pass"]);
+  assert.equal(restored.pending, null);
+  assert.equal(restored.result.reason, "move-cap");
+});
+
+test("forks honor turn parity, chosen CPUs, board size and takeover in exported SGF", async () => {
+  assert.deepEqual(callBudget({black:"chat",white:"chat"}, 142, 139), {black:1, white:2});
+  const {record, ref} = game({black:"cpu", white:"cpu"}, 2);
+  record.seats = {black:{kind:"cpu", style:"alphago"}, white:{kind:"cpu",style:"club-fighter"}};
+  const styles = [];
+  ref.cpu = async style => { styles.push(style); return "pass"; };
+  await playGame(ref, {}, record, new AbortController().signal, () => {}, () => {});
+  assert.deepEqual(styles, ["alphago","club-fighter"]);
+  Object.assign(record, {size:19, startPly:1, moves:["T19","A1"]});
+  assert.match(makeSGF(record), /SZ\[19\].*PB\[Yi Neural\]/);
+  assert.match(makeSGF(record), /;B\[sa\]C\[Exhibition seats take over from this position\.\];W\[as\]/);
+});

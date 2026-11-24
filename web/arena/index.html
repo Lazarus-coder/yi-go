@@ -26,7 +26,7 @@
     <main class="arena-main">
       <div class="league-title"><h1 id="run-title">围棋联赛</h1><time id="generated-at"></time></div>
       <div id="data-error" class="data-error" role="alert" hidden>
-        <p id="error-message"></p><button id="retry" type="button">重试</button><a href="./report.json">查看报告 ↗</a>
+        <p id="error-message"></p><button id="retry" type="button">重试</button><a id="raw-report" href="./report.json">查看报告 ↗</a>
       </div>
       <p id="navigation-note" class="navigation-note" role="status" hidden></p>
       <div id="arena-content" class="arena-stage" aria-busy="true">
@@ -46,9 +46,10 @@
           </div>
           <div class="replay-meta">
             <div><output id="ply" for="seek">—</output><span id="move-detail"></span></div>
-            <span class="capture-line">提子 <span>黑 <b id="black-captures">0</b></span><span>白 <b id="white-captures">0</b></span></span>
+            <span class="capture-line"><select id="capture-jump" aria-label="跳到提子的一手" disabled><option value="">提子</option></select><span>黑 <b id="black-captures">0</b></span><span>白 <b id="white-captures">0</b></span></span>
           </div>
-          <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="选择棋谱手数">
+          <input id="seek" type="range" min="0" max="0" value="0" list="capture-marks" disabled aria-label="选择棋谱手数">
+          <datalist id="capture-marks"></datalist>
           <div class="replay-controls" aria-label="回放控制">
             <button id="first" type="button" disabled aria-label="回到开局" title="回到开局">|‹</button>
             <button id="prev" type="button" disabled aria-label="上一手" title="上一手">‹</button>
@@ -58,7 +59,10 @@
           </div>
           <div class="result-line">
             <p><strong id="result" role="status"></strong><span id="result-detail"></span></p>
-            <a id="game-link" href="#replay" aria-label="当前棋局的直接链接">本局链接 ↗</a>
+            <div class="replay-links">
+              <a id="game-link" href="#replay" aria-label="当前棋局的直接链接">本局链接 ↗</a>
+              <a id="fork-link" hidden>从这里续弈 →</a>
+            </div>
           </div>
           <p id="replay-help" class="sr-only">聚焦棋盘后，用方向键逐手回放，空格播放，Home 和 End 跳至两端。</p>
         </section>
@@ -82,12 +86,13 @@
 
       <details id="league-details" class="league-details">
         <summary>赛事资料</summary>
-        <div class="details-grid">
+        <label class="report-picker">打开本地战报 <input id="report-file" type="file" accept=".json,application/json"></label>
+        <div id="league-metadata" class="details-grid">
           <div>
             <h2>赛制</h2>
             <p id="rules-detail"></p><p id="schedule-detail"></p>
             <p>面积计分，死子须提净。胜 1 分，和 0.5 分。</p>
-            <p class="data-links"><a href="./report.json" download>下载战报 ↓</a><a href="https://github.com/Lazarus-coder/yi-go/blob/main/arena/README.md">实验记录 ↗</a></p>
+            <p class="data-links" id="published-links"><a href="./report.json" download>下载战报 ↓</a><a href="https://github.com/Lazarus-coder/yi-go/blob/main/arena/README.md">实验记录 ↗</a></p>
           </div>
           <div id="players"><h2>参赛版本</h2><ul id="competitor-list"></ul></div>
           <dl id="provenance-list"></dl>
