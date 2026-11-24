@@ -192,20 +192,12 @@ func runGame(ctx context.Context, config Config, pair pairing) (record GameRecor
 		if g.Over {
 			record.Result = decided(record, "passes", g.Score.Winner, g.Score)
 		} else if len(g.Moves) == config.MaxMoves {
-			score := capScore(g)
+			score := g.AreaScore()
 			g.Over, g.Score = true, score
 			record.Result = decided(record, "move-cap", score.Winner, score)
 		}
 	}
 	return record, nil
-}
-
-func capScore(g *game.Game) *game.Score {
-	copy := isolated(g)
-	for !copy.Over {
-		_ = copy.Play(game.Move{X: -1, Y: -1})
-	}
-	return copy.Score
 }
 
 func decided(record GameRecord, reason string, winner int, score *game.Score) Result {

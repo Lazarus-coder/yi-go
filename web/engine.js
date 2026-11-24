@@ -157,10 +157,20 @@ export async function runGame(payload) {
     }
     return game;
   }
+  return postGame("./api/game", payload);
+}
+
+export async function inspectExhibition(payload) {
+  if (document.documentElement.dataset.engine !== "wasm") return postGame("./api/exhibition", payload);
+  await initializeEngine();
+  return primary.request("exhibition", payload);
+}
+
+async function postGame(path, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMS);
   try {
-    const response = await fetch("./api/game", {
+    const response = await fetch(path, {
       method: "POST", signal: controller.signal,
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });

@@ -6,7 +6,7 @@ self.onmessage = ({ data }) => {
     return;
   }
   try {
-    const run = { run: self.yiRun, analyze: self.yiAnalyze, merge: self.yiMerge }[data.operation || "run"];
+    const run = { run: self.yiRun, analyze: self.yiAnalyze, merge: self.yiMerge, exhibition: self.yiExhibition }[data.operation || "run"];
     if (!run) throw new Error("Unknown worker operation");
     const result = JSON.parse(run(JSON.stringify(data.payload)));
     self.postMessage({ id: data.id, ...result });

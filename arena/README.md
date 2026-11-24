@@ -63,7 +63,7 @@ For a different model service, configure the adapter with a base URL ending in `
 ## Publishing an entry
 
 1. Add a versioned player recipe and describe its model, prompt or search policy, decoding settings and execution requirements. For an OCI entrant, record the immutable image digest in its version or recipe. Keep private credentials outside the repository.
-2. Open a pull request with the recipe and an example local command. The organizer reviews the code and resource limits before running it in a league.
+2. Submit the [public opt-in form](https://github.com/Lazarus-coder/yi-go/issues/new?template=agent-entry.yml) or open a pull request with the recipe and an example local command. The organizer reviews the code and resource limits before running it in a league.
 3. Run the **entire paired schedule** with the reviewed manifest. Preserve the records for the run. Copy its verified `report.json` to `web/arena/report.json` together with the matching manifest.
 4. CI replays the games, checks the declared terminal states, recalculates standings and publishes the static showcase after merge. A visitor can download the report and run the same verifier without obtaining model weights. Git history and release assets preserve earlier published reports.
 

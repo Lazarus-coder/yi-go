@@ -68,3 +68,28 @@ func ASCII(g *Game) string {
 	fmt.Fprint(&board, "X = black, O = white, . = empty")
 	return board.String()
 }
+
+func ColorName(color int) string {
+	switch color {
+	case Black:
+		return "black"
+	case White:
+		return "white"
+	default:
+		return "draw"
+	}
+}
+
+// Observe describes the same public position for tournament and exhibition agents.
+func Observe(g *Game, maxMoves int) map[string]any {
+	history := make([]string, len(g.Moves))
+	for i, move := range g.Moves {
+		history[i] = FormatMove(move, g.Size)
+	}
+	return map[string]any{
+		"color": ColorName(g.Next), "revision": len(history), "size": g.Size, "komi": Komi,
+		"maxMoves": maxMoves, "remainingMoves": max(0, maxMoves-len(history)),
+		"ascii": ASCII(g), "board": g.Board, "legal": LegalMoves(g), "history": history,
+		"captures": g.Captures, "rules": map[string]string{"ko": "simple", "scoring": "area", "deadStones": "not adjudicated"},
+	}
+}

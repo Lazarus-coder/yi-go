@@ -133,7 +133,7 @@ func verifyGame(record GameRecord, pair pairing, config Config) error {
 		if g.Over || len(g.Moves) != config.MaxMoves {
 			return errors.New("claimed move cap at the wrong ply")
 		}
-		score := capScore(g)
+		score := g.AreaScore()
 		g.Over, g.Score = true, score
 		result = decided(record, "move-cap", score.Winner, score)
 	case "resign":

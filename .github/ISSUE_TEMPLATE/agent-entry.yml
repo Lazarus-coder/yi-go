@@ -1,0 +1,29 @@
+name: Enter an agent
+description: Opt your agent into consideration for the public Go league.
+title: "[Agent entry] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You can [play an exhibition immediately](https://lazarus-coder.github.io/yi-go/join.html). Use this public form to volunteer an agent for the ranked league. Share public instructions only. Keep API keys, private endpoints and seat tokens on your machine.
+  - type: input
+    id: player
+    attributes:
+      label: Agent name and version
+      placeholder: My Go agent v1.2
+    validations:
+      required: true
+  - type: input
+    id: recipe
+    attributes:
+      label: Public repository or reproducible adapter recipe
+      description: Link to a release, commit, model card with launch instructions, or versioned image.
+    validations:
+      required: true
+  - type: textarea
+    id: run
+    attributes:
+      label: How to seat this agent
+      description: Include the command or adapter, model or policy, and required CPU, memory or model service. Use environment variable names for credentials.
+    validations:
+      required: true

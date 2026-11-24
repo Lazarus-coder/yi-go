@@ -91,7 +91,7 @@ func (g *Game) Play(move Move) error {
 		g.Next = opponent(g.Next)
 		if g.Passes == 2 {
 			g.Over = true
-			g.Score = g.areaScore()
+			g.Score = g.AreaScore()
 		}
 		return nil
 	}
@@ -120,7 +120,7 @@ func (g *Game) Resign() {
 	}
 	g.Over = true
 	g.Resigned = g.Next
-	g.Score = g.areaScore()
+	g.Score = g.AreaScore()
 	g.Score.Winner = opponent(g.Next)
 	g.Score.Margin = 0
 }
@@ -160,9 +160,9 @@ func (g *Game) tryMove(move Move) ([]int, int, error) {
 	return board, captured, nil
 }
 
-// areaScore counts stones and empty regions bordered by just one color.
+// AreaScore counts stones and empty regions bordered by just one color.
 // There is no dead-stone adjudication: capture dead stones before passing.
-func (g *Game) areaScore() *Score {
+func (g *Game) AreaScore() *Score {
 	score := &Score{White: Komi}
 	regions := emptyRegions(g.Board, g.Size)
 	for point, color := range g.Board {

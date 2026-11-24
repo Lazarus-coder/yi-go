@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "title": "Bring your own model",
+  "boardSize": 9,
+  "komi": 6.5,
+  "turnTimeoutMS": 30000,
+  "maxMoves": 40,
+  "rounds": 1,
+  "openings": [{"id": "empty", "name": "Empty board", "moves": []}],
+  "players": [
+    {
+      "id": "my-model",
+      "name": "My model",
+      "kind": "external",
+      "version": "local BYOK setup",
+      "driver": {"mode": "command", "command": ["python3", "examples/chat/agent.py", "--plain", "--token-env", "YI_CHAT_KEY"]}
+    },
+    {"id": "club-fighter", "name": "Yi Club Fighter", "kind": "builtin", "style": "club-fighter", "version": "heuristic-v1"}
+  ]
+}

@@ -194,7 +194,7 @@ func NewPlayer(ctx context.Context, config DriverConfig, size, color int, detail
 	}()
 	id := p.session + ":hello"
 	line, err := p.exchange(startup, map[string]any{
-		"type": "hello", "protocol": protocol, "id": id, "gameId": p.info.ID, "color": p.side(), "size": size, "komi": game.Komi,
+		"type": "hello", "protocol": protocol, "id": id, "gameId": p.info.ID, "color": game.ColorName(p.color), "size": size, "komi": game.Komi,
 		"players":  map[string]string{"black": p.info.BlackID, "white": p.info.WhiteID},
 		"maxMoves": p.info.MaxMoves, "turnTimeoutMS": p.info.TurnTimeoutMS,
 		"revision": p.info.OpeningPlies, "remainingMoves": p.info.MaxMoves - p.info.OpeningPlies,
@@ -220,13 +220,6 @@ func NewPlayer(ctx context.Context, config DriverConfig, size, color int, detail
 	return p, nil
 }
 
-func (p *processPlayer) side() string {
-	if p.color == game.White {
-		return "white"
-	}
-	return "black"
-}
-
 func (p *processPlayer) Move(ctx context.Context, g *game.Game) (Decision, error) {
 	p.requestMu.Lock()
 	defer p.requestMu.Unlock()
@@ -238,20 +231,14 @@ func (p *processPlayer) Move(ctx context.Context, g *game.Game) (Decision, error
 	deadline, _ := ctx.Deadline()
 	p.sequence++
 	id := p.session + ":" + strconv.Itoa(p.sequence)
-	history := make([]string, len(g.Moves))
-	for i, move := range g.Moves {
-		history[i] = game.FormatMove(move, g.Size)
-	}
-	observation := map[string]any{
-		"type": "turn", "protocol": protocol, "id": id, "gameId": p.info.ID,
-		"color": p.side(), "revision": len(g.Moves), "size": g.Size, "komi": game.Komi,
-		"players":  map[string]string{"black": p.info.BlackID, "white": p.info.WhiteID},
-		"maxMoves": p.info.MaxMoves, "turnTimeoutMS": p.info.TurnTimeoutMS,
-		"remainingMoves": max(0, p.info.MaxMoves-len(g.Moves)),
-		"ascii":          game.ASCII(g), "board": g.Board, "legal": game.LegalMoves(g), "history": history,
-		"captures": g.Captures, "rules": map[string]string{"ko": "simple", "scoring": "area", "deadStones": "not adjudicated"},
-		"timeLimitMS": max(1, time.Until(deadline).Milliseconds()),
-	}
+	observation := game.Observe(g, p.info.MaxMoves)
+	observation["type"] = "turn"
+	observation["protocol"] = protocol
+	observation["id"] = id
+	observation["gameId"] = p.info.ID
+	observation["players"] = map[string]string{"black": p.info.BlackID, "white": p.info.WhiteID}
+	observation["turnTimeoutMS"] = p.info.TurnTimeoutMS
+	observation["timeLimitMS"] = max(1, time.Until(deadline).Milliseconds())
 	line, err := p.exchange(ctx, observation)
 	var reply struct {
 		Type     string `json:"type"`

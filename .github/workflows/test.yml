@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq gnugo
           YI_GTP_COMMAND='["/usr/games/gnugo","--mode","gtp","--level","1"]' go test ./internal/arena -run '^TestExternalGTPReference$' -count=1 -v
-      - run: node --test web/arena/arena.test.mjs
+      - run: node --test web/arena/arena.test.mjs scripts/open-players.test.mjs scripts/join.test.mjs
       - name: Replay the published league and verify standings
         run: go run ./cmd/arena verify -config arena/league.json -report web/arena/report.json
       - name: Play two seats in isolated containers

@@ -71,6 +71,7 @@ func newHandler(report *arena.Report) http.Handler {
 		http.ServeFileFS(w, r, assets, "AGENTS.md")
 	})
 	mux.HandleFunc("POST /api/game", handleGame)
+	mux.HandleFunc("POST /api/exhibition", handleExhibition)
 	if report != nil {
 		mux.HandleFunc("GET /report.json", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, report)
@@ -81,38 +82,64 @@ func newHandler(report *arena.Report) http.Handler {
 		case "/", "/index.html", "/arena.css", "/arena.js", "/report.json":
 			showcase.ServeHTTP(w, r)
 		case "/play.html", "/style.css", "/app.js", "/engine.js", "/board.js", "/board.css", "/kaya.jpg",
-			"/watch.html", "/watch.js", "/exhibition.js":
+			"/watch.html", "/watch.js", "/exhibition.js",
+			"/join.html", "/join.css", "/join.js", "/open-referee.js", "/open-players.js":
 			static.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+		connections := "connect-src 'self'"
+		if r.URL.Path == "/join.html" {
+			connections += " https: http://127.0.0.1:* http://localhost:*"
+			w.Header().Set("Referrer-Policy", "no-referrer")
+		}
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "+connections+"; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-cache")
 		mux.ServeHTTP(w, r)
 	})
 }
 
-func handleGame(w http.ResponseWriter, r *http.Request) {
+func decodeGameRequest(w http.ResponseWriter, r *http.Request, input any) bool {
 	// The local app has no cross-origin clients.
 	if origin := r.Header.Get("Origin"); origin != "" {
 		u, err := url.Parse(origin)
 		if err != nil || u.Host != r.Host || (u.Scheme != "http" && u.Scheme != "https") {
 			writeError(w, http.StatusForbidden, "请从应用页面发起请求。")
-			return
+			return false
 		}
 	}
-	var input match.Request
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&input); err != nil {
+	if err := decoder.Decode(input); err != nil {
 		writeError(w, http.StatusBadRequest, "请求格式不正确。")
-		return
+		return false
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		writeError(w, http.StatusBadRequest, "请求只能包含一局棋。")
+		return false
+	}
+	return true
+}
+
+func handleExhibition(w http.ResponseWriter, r *http.Request) {
+	var input match.ExhibitionRequest
+	if !decodeGameRequest(w, r, &input) {
+		return
+	}
+	state, err := match.InspectExhibition(input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
+}
+
+func handleGame(w http.ResponseWriter, r *http.Request) {
+	var input match.Request
+	if !decodeGameRequest(w, r, &input) {
 		return
 	}
 	g, err := match.Run(input)

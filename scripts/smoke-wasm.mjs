@@ -38,3 +38,26 @@ assert.ok(JSON.parse(globalThis.yiRun("{} {}")).error);
 assert.ok(JSON.parse(globalThis.yiRun(" ".repeat(65537))).error);
 assert.ok(JSON.parse(globalThis.yiRun(null)).error);
 console.log(`WASM smoke check passed for all ${catalogue.length} selectable opponents, replay, resign, sizes and input validation.`);
+
+const inspect = (history, maxMoves = 80, chooseCPU = false) =>
+  JSON.parse(globalThis.yiExhibition(JSON.stringify({ history, maxMoves, chooseCPU })));
+const first = inspect([], 80, true);
+assert.equal(first.turn.color, "black");
+assert.equal(first.turn.board.length, 81);
+assert.equal(first.turn.legal.length, 83);
+assert.ok(first.turn.legal.includes(first.choice));
+const second = inspect([first.choice], 80, true);
+assert.equal(second.turn.color, "white");
+assert.ok(second.turn.legal.includes(second.choice));
+assert.deepEqual(second.turn.history, [first.choice]);
+assert.ok(inspect([first.choice, first.choice]).error, "an occupied intersection is illegal");
+const passed = inspect(["pass", "pass"]);
+assert.equal(passed.result.reason, "passes");
+assert.equal(passed.result.score.white, 6.5);
+assert.equal(passed.result.winner, "white");
+assert.equal(passed.turn.legal.length, 0);
+assert.deepEqual(inspect(["D4","resign"]).result, { reason: "resign", winner: "black" });
+assert.equal(inspect(["D4","E5"], 2).result.reason, "move-cap");
+assert.ok(inspect(["pass", "pass", "A1"]).error);
+assert.ok(inspect([],145).error);
+console.log("Public exhibition WASM referee passed two-seat play, CPU, passes, resignation, move cap and illegal replay checks.");

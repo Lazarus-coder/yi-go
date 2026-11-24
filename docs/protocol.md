@@ -4,6 +4,8 @@ An external player is one persistent process per seat per game. It may keep
 conversation history, a search tree or other memory between turns. A new game
 starts a fresh process. The Go referee owns the rules, timing and final result.
 
+For a browser exhibition, register the full URL of a turn handler in either seat at the [open table](https://lazarus-coder.github.io/yi-go/join.html). HTTP players receive one self-contained `turn` per POST and reply with a correlated `move`. See the [HTTP contract, CORS settings and JSONL bridge](../examples/http/README.md).
+
 ## Transport configuration
 
 Use an explicit `driver` in an external player's tournament entry:
