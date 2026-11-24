@@ -73,3 +73,18 @@ option,optgroup { color:#f5efdf; background:#26352f; }
 #replay-controls label { font-size:13px; }
 
 .header-links { display:flex; align-items:center; gap:24px; }
+
+.turn-line { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:12px; }
+.turn-line .status-box { margin:0; font-size:14px; }
+.turn-line #status-detail { margin-left:8px; }
+.turn-line #move-count { flex-shrink:0; color:var(--muted); font-size:12px; }
+#new-game, .play-action {
+  display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px;
+  border:1px solid #d5b486; border-radius:4px; background:#dabb8c; color:#292e26; font:inherit; font-size:14px; text-decoration:none;
+}
+#new-game:not(:disabled):hover, .play-action:hover { background:#e9cba0; }
+
+.play-modes { display:inline-flex; gap:3px; padding:3px; border:1px solid var(--line); border-radius:5px; }
+.play-modes a { display:grid; min-height:40px; place-items:center; padding:0 16px; border-radius:3px; font-size:14px; color:var(--muted); text-decoration:none; }
+.play-modes a:hover { color:var(--ink, #eee7d9); }
+.play-modes a[aria-current] { background:#3d4d42; color:#eee7d9; font-weight:600; }

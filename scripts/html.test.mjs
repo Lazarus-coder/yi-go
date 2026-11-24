@@ -9,6 +9,17 @@ const assetTag = html.match(/<script id="yi-offline-assets" type="application\/j
 assert.ok(assetTag, "offline asset payload is embedded");
 const assets = JSON.parse(assetTag[1]);
 
+test("both entry pages offer human play before the board, with restart at the board", async () => {
+  for (const page of ["index", "join", "play"]) {
+    const source = await readFile(new URL("../dist/" + page + ".html", import.meta.url), "utf8");
+    const board = source.indexOf('<svg id="board"');
+    assert.ok(board > 0, page + " board");
+    const top = source.slice(0, board);
+    assert.match(top, /<a\b[^>]*href="\.\/play\.html"[^>]*>\s*自己下棋\s*<\/a>/, page);
+    if (page === "play") assert.match(top, /<button\b[^>]*id="new-game"[^>]*>\s*新对局\s*<\/button>/);
+  }
+});
+
 test("play and watch entries include all modules, styles and images", async () => {
   assert.equal(assets.play.entry, "app.js");
   assert.equal(assets.watch.entry, "watch.js");
@@ -21,6 +32,7 @@ test("play and watch entries include all modules, styles and images", async () =
   assert.match(html, /data:image\/jpeg;base64,/);
   assert.doesNotMatch(html.replace(assetTag[0], ""), /<(?:script|link)\b[^>]*(?:src|href)=["']\.\//);
   assert.match(assets.watch.body, /href="#play"/);
+  assert.ok(html.includes('href="https://lazarus-coder.github.io/yi-go/join.html"'), "Agent mode opens the online exhibition from a standalone download");
   assert.doesNotMatch(assets.watch.body, /href=["']\.\//);
   const bootstrap = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
   assert.ok(bootstrap, "offline module loader is embedded");

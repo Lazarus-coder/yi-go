@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#182725">
-  <meta name="description" content="弈，一个安静、简单的围棋练习。执黑先行，选择一位 CPU 对手下一局。">
-  <title>弈 · 一局围棋</title>
+  <meta name="description" content="选择 CPU 对手，执黑练习围棋。">
+  <title>人机练习 · 弈</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23eee9db'/%3E%3Ccircle cx='32' cy='32' r='20' fill='%232d3027'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./board.css">
@@ -14,12 +14,21 @@
 <body>
   <div class="page">
     <header class="header">
-      <a class="brand" href="./" aria-label="Yi Arena 积分榜"><span class="brand-mark">弈</span><span class="brand-name">YI <span>/</span> ARENA</span></a>
-      <nav class="header-links"><a class="header-note" href="./watch.html">观战室</a><a class="header-note" href="https://github.com/Lazarus-coder/yi-go/tree/main/skills/yi-go-play">Agent 对弈 ↗</a></nav>
+      <a class="brand" href="./" aria-label="Yi Arena 积分榜"><span class="brand-mark">弈</span></a>
+      <a class="header-note" href="./watch.html">观战</a>
     </header>
     <main>
       <section class="board-area" aria-label="对局棋盘">
-        <div class="board-heading"><span id="board-size">九路棋盘</span><span id="move-count">第 0 手</span></div>
+        <h1 class="sr-only">自己下棋</h1>
+        <div class="board-heading">
+          <nav class="play-modes" aria-label="对局模式"><a href="./play.html" aria-current="page">自己下棋</a><a href="./join.html">Agent 对局</a></nav>
+          <button id="new-game" type="button" disabled>新对局</button>
+        </div>
+        <div class="turn-line">
+          <div class="status-box" role="status" aria-live="polite"><span id="status">正在载入棋局…</span><span id="status-detail" hidden></span></div>
+          <span id="move-count">第 0 手</span>
+        </div>
+        <p id="error" class="error" role="alert" hidden></p>
         <div class="board-shell">
           <svg id="board" viewBox="0 0 640 640" tabindex="0" role="application" aria-roledescription="围棋棋盘" aria-label="九路棋盘，正在载入棋局" aria-disabled="true" aria-describedby="board-help">
             <defs></defs>
@@ -29,32 +38,26 @@
             <circle id="cursor" fill="none" stroke="#a54932" stroke-width="2" pointer-events="none" hidden/>
           </svg>
         </div>
-        <p id="board-help" class="board-help">点击交叉点落子<span>·</span>也可用方向键移动，回车落子</p>
+        <p id="board-help" class="board-help">方向键移动，回车或空格落子。</p>
         <span id="board-announcement" class="sr-only" role="status" aria-live="polite"></span>
       </section>
       <aside class="sidebar" aria-label="对局信息和控制">
-        <div class="intro"><h1>对局室</h1></div>
-        <div class="players">
-          <div class="player"><span class="player-stone black"></span><div><strong>你</strong><span>黑棋 · 先行</span></div><span id="human-turn" class="turn-dot" aria-label="当前回合" hidden></span></div>
-          <div class="player"><span class="player-stone white"></span><div><strong><span class="cpu-label">CPU</span> <span id="cpu-name">载入中</span></strong><span id="cpu-detail">白棋</span></div><span id="cpu-turn" class="turn-dot" aria-label="当前回合" hidden></span></div>
-        </div>
-        <div class="status-box">
-          <p id="status" class="status" role="status" aria-live="polite">正在载入棋局…</p>
-          <p id="status-detail">准备就绪后，即可落子。</p>
-        </div>
         <dl class="capture-stats"><div><dt>黑棋提子</dt><dd id="black-captures">0</dd></div><div><dt>白棋提子</dt><dd id="white-captures">0</dd></div></dl>
         <div class="controls">
-          <label class="size-label" for="size">棋盘规格<select id="size" disabled><option value="9">9 × 9 · 小棋盘</option><option value="13">13 × 13 · 中棋盘</option><option value="19">19 × 19 · 标准棋盘</option></select></label>
-          <div class="style-control"><label class="style-label" for="style">CPU 对手<select id="style" aria-describedby="style-detail" disabled><option value="">正在载入对手…</option></select></label><p id="style-detail" class="style-detail" aria-live="polite" aria-atomic="true">选择一位对手，了解它的下法。</p></div>
-          <div class="action-row"><button id="undo" type="button" disabled>悔棋 <span aria-hidden="true">↶</span></button><button id="pass" type="button" disabled>停一手 <span aria-hidden="true">→</span></button></div>
-          <button id="new-game" class="primary" type="button" disabled>新对局 <span aria-hidden="true">＋</span></button>
+          <label class="size-label" for="size">棋盘<select id="size" disabled><option value="9">9 × 9</option><option value="13">13 × 13</option><option value="19">19 × 19</option></select></label>
+          <div class="style-control"><label class="style-label" for="style">白棋对手 · CPU<select id="style" aria-describedby="style-detail" disabled><option value="">正在载入对手…</option></select></label><p id="cpu-detail" class="style-detail" hidden></p></div>
+          <div class="action-row"><button id="undo" type="button" disabled>悔棋</button><button id="pass" type="button" disabled>停一手</button></div>
           <button id="resign" class="quiet" type="button" disabled>认输</button>
         </div>
-        <p id="error" class="error" role="alert" hidden></p>
-        <details class="rules"><summary>棋局小记 <span aria-hidden="true">＋</span></summary><div><p>黑白交替落子。棋子上下左右相连形成一块；相邻空点称为「气」。没有气的棋块会被提走，不能自杀落子。</p><p>采用简单劫规则，不能立即还原上一手之前的局面。双方连续停一手后结束；白棋贴 6.5 目。</p><p>终局以盘面棋子和围住的空点估算面积，不自动判定死子。请先把需要提走的棋子提净，再停一手。这是练习用的简化计分。</p><p>从入门陪练到进阶搜索，各对手有不同的下法偏好，可随时切换，从白棋的下一手生效。进阶对手会预想你的反击；AlphaGo 灵感档不代表原版 AI 的棋力。悔棋会撤回你与 CPU 的最近一轮落子。</p></div></details>
+        <details class="rules"><summary>棋风与规则 <span aria-hidden="true">＋</span></summary><div>
+          <p id="style-detail"></p>
+          <p>你执黑先行。点击交叉点落子。悔棋撤回一轮，更换对手从下一手生效。</p>
+          <p>无气的棋块被提走。禁自杀，劫争不能立即回提。</p>
+          <p>双方连续停一手后按面积计分，白贴 6.5 目。死子须在停手前提净。</p>
+        </div></details>
       </aside>
     </main>
-    <footer><span>弈 · 围棋</span><span id="save-note">棋局自动保存在此浏览器</span></footer>
+    <footer><span id="save-note">棋局自动保存在此浏览器</span></footer>
   </div>
 </body>
 </html>

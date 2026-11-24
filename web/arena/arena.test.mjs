@@ -189,7 +189,7 @@ function domHarness(data, failFirst = false, hash = "") {
       addEventListener(name, fn) {
         this.handlers[name] = fn;
       },
-      scrollIntoView() {},
+      scrollIntoView() { this.scrolls = (this.scrolls || 0) + 1; },
     };
   }
   const get = (id) => {
@@ -254,7 +254,7 @@ test("controls, keyboard, deep links and end-of-game replay keep state in sync",
   assert.match(app.context.location.hash, /ply=1/);
   app.nodes.get("board").handlers.keydown({ key: "End", preventDefault() {} });
   assert.equal(app.nodes.get("next").disabled, true);
-  assert.equal(app.nodes.get("toggle").textContent, "重播棋谱");
+  assert.equal(app.nodes.get("toggle").textContent, "重播");
   app.nodes.get("toggle").handlers.click();
   assert.equal(app.nodes.get("ply").textContent, "0 / 3 手");
   assert.equal(app.intervals.size, 1);
@@ -269,6 +269,19 @@ test("controls, keyboard, deep links and end-of-game replay keep state in sync",
   app.context.location.hash = "#game=game-1&ply=2";
   app.events.hashchange();
   assert.equal(app.nodes.get("ply").textContent, "2 / 3 手");
+});
+
+test("selecting the same game again brings the replay back into view", async () => {
+  const app = domHarness(fixture(), false, "#game=game-1&ply=0");
+  await flush();
+  let prevented = false;
+  app.nodes.get("match-list").handlers.click({
+    button: 0, target: {closest: () => ({hash: app.context.location.hash})},
+    preventDefault() { prevented = true; },
+  });
+  assert.equal(prevented, true);
+  assert.equal(app.nodes.get("replay").scrolls, 1);
+  assert.equal(app.nodes.get("ply").textContent, "0 / 3 手");
 });
 
 test("failed report loading exposes retry and successful retry renders real data", async () => {

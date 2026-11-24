@@ -75,7 +75,8 @@ async function page(name) {
   }
   html = html.replace(/href=(["'])\.\/(?:index\.html)?\1/g, 'href="https://lazarus-coder.github.io/yi-go/"')
     .replace(/href=(["'])\.\/play\.html\1/g, 'href="#play"')
-    .replace(/href=(["'])\.\/watch\.html\1/g, 'href="#watch"');
+    .replace(/href=(["'])\.\/watch\.html\1/g, 'href="#watch"')
+    .replace(/href=(["'])\.\/join\.html\1/g, 'href="https://lazarus-coder.github.io/yi-go/join.html"');
   for (const match of html.matchAll(/<a\b[^>]*>/gi)) {
     const href = attribute(match[0], "href");
     if (href && !/^(?:#|https?:|mailto:)/i.test(href)) throw new Error(`Unresolved offline navigation in ${name}: ${href}`);

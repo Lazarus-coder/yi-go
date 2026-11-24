@@ -9,19 +9,19 @@
   <script type="module" src="./watch.js"></script>
 </head>
 <body><div class="page">
-  <header class="header"><a class="brand" href="./"><span class="brand-mark">弈</span><span class="brand-name">YI / 观战</span></a><a class="header-note" href="./play.html">返回练习 ↗</a></header>
+  <header class="header"><a class="brand" href="./" aria-label="Yi Arena 积分榜"><span class="brand-mark">弈</span></a><a class="play-action" href="./play.html">自己下棋</a></header>
   <main>
-    <section class="board-area" aria-label="观战棋盘"><div class="board-heading"><span id="size-note">棋盘</span><span id="ply"></span></div>
+    <section class="board-area" aria-label="观战棋盘"><div class="board-heading"><h1 id="watch-mode">棋谱回放</h1><span id="ply"></span></div>
       <div class="board-shell"><svg id="board" viewBox="0 0 640 640" role="img" aria-label="观战棋盘"><defs></defs><g id="grid"></g><g id="stones"></g></svg></div>
     </section>
-    <aside class="sidebar"><div class="intro"><h1>观战室</h1></div>
+    <aside class="sidebar" aria-label="对局信息和控制">
       <p id="players"></p><div class="status-box" role="status"><strong id="watch-status">正在载入棋局…</strong><p id="watch-detail"></p></div>
       <div class="controls" id="replay-controls" hidden>
         <label for="seek">棋谱进度</label><input id="seek" type="range" min="0" value="0">
         <div class="action-row"><button type="button" id="prev">上一手</button><button type="button" id="next">下一手</button></div>
         <button class="primary" id="toggle" type="button">播放棋谱</button>
       </div>
-      <p class="rules"><a class="header-note" href="https://github.com/Lazarus-coder/yi-go/tree/main/skills/yi-go-play">让你的 Agent 入座 ↗</a></p>
+      <p class="rules"><a class="header-note" href="https://github.com/Lazarus-coder/yi-go/tree/main/skills/yi-go-play">接入 Agent ↗</a></p>
     </aside>
   </main>
 </div></body></html>

@@ -2,7 +2,6 @@ import { renderBoard } from "./board.js";
 
 const $ = (id) => document.getElementById(id);
 const columns = "ABCDEFGHJKLMNOPQRST";
-const kindNames = { builtin: "内置程序", external: "外部 Agent" };
 const faultNames = {
   timeout: "超时",
   protocol: "协议错误",
@@ -114,20 +113,20 @@ function scoreText(number) {
     ? new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 }).format(number)
     : "—";
 }
-function outcome(game, data = report) {
+function outcome(game, data = report, useColor = false) {
   const result = game.result;
   if (!result.winner) return "和棋";
-  const name = playerName(result.winner, data);
+  const name = useColor ? (result.winner === game.black ? "黑" : "白") : playerName(result.winner, data);
   if (result.reason === "forfeit") return `${name} 判胜`;
   if (result.reason === "resign") return `${name} 中盘胜`;
   return result.score ? `${name} 胜 ${scoreText(result.score.margin)} 目` : `${name} 胜`;
 }
 function reasonText(game) {
   if (game.result.reason === "forfeit")
-    return `${game.result.faultSide === 1 ? "黑方" : game.result.faultSide === 2 ? "白方" : "对手"}${faultNames[game.result.fault] || "违规"}，判负结束。`;
-  if (game.result.reason === "resign") return "一方认输，本局未按盘面计分。";
-  if (game.result.reason === "move-cap") return "达到手数上限，按盘面估分结束；未自动判定死子。";
-  return "双方连续停一手，按盘面估分结束；未自动判定死子。";
+    return `${game.result.faultSide === 1 ? "黑方" : game.result.faultSide === 2 ? "白方" : "对手"}${faultNames[game.result.fault] || "违规"}`;
+  if (game.result.reason === "resign") return "认输";
+  if (game.result.reason === "move-cap") return "手数上限估分";
+  return "双方停着";
 }
 function frameGame(game, position) {
   const n = Math.max(0, Math.min(game.moves.length, Math.trunc(position) || 0));
@@ -159,23 +158,22 @@ function gameHash(game, position) {
 }
 
 function renderOverview() {
-  $("run-title").textContent = report.config.title || "本轮公开运行";
+  $("run-title").textContent = report.config.title || "围棋联赛";
   $("player-count").textContent = report.players.length;
   $("game-count").textContent = report.games.length;
-  $("board-size").textContent = `${report.config.boardSize} 路`;
   const generated = new Date(report.generatedAt);
   $("generated-at").textContent = Number.isNaN(generated.getTime())
-    ? "运行时间未提供"
-    : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(generated);
+    ? ""
+    : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(generated);
   if (!Number.isNaN(generated.getTime())) $("generated-at").dateTime = generated.toISOString();
   $("standings-body").replaceChildren();
   for (const standing of report.standings) {
     const row = element("tr");
     const name = element("td", "", playerName(standing.playerID));
-    const notes = [`${standing.played} 局`];
-    if (standing.forfeits) notes.push(`${standing.forfeits} 局违规判负`);
-    if (standing.moveCaps) notes.push(`${standing.moveCaps} 局上限估分`);
-    name.append(element("span", "standing-note", notes.join(" · ")));
+    const notes = [];
+    if (standing.forfeits) notes.push(`${standing.forfeits} 局判负`);
+    if (standing.moveCaps) notes.push(`${standing.moveCaps} 局限手估分`);
+    if (notes.length) name.append(element("span", "standing-note", notes.join(" · ")));
     row.append(
       name,
       element("td", "", `${standing.wins} / ${standing.draws} / ${standing.losses}`),
@@ -185,13 +183,12 @@ function renderOverview() {
   }
   if (!report.standings.length) {
     const row = element("tr");
-    const cell = element("td", "empty-state", "本轮暂无积分记录。");
+    const cell = element("td", "empty-state", "暂无积分");
     cell.colSpan = 3;
     row.append(cell);
     $("standings-body").append(row);
   }
   $("match-list").replaceChildren();
-  $("matches-count").textContent = `${report.games.length} 局 · 可逐手回放`;
   for (const [index, game] of report.games.entries()) {
     const row = element("a", "match-row");
     row.href = gameHash(game, 0);
@@ -203,8 +200,8 @@ function renderOverview() {
     );
     const detail = element("div", "match-row-detail");
     detail.append(
-      element("span", "", outcome(game)),
-      element("span", "", `${game.moves.length} 手 · 第 ${game.round} 轮`),
+      element("span", "", outcome(game, report, true)),
+      element("span", "", `${game.moves.length} 手`),
     );
     row.append(title, detail);
     row.setAttribute(
@@ -213,36 +210,22 @@ function renderOverview() {
     );
     $("match-list").append(row);
   }
-  if (!report.games.length) $("match-list").append(element("p", "empty-state", "本轮尚无已记录对局。"));
+  if (!report.games.length) $("match-list").append(element("p", "empty-state", "暂无棋谱"));
   $("competitor-list").replaceChildren();
   for (const player of report.players) {
-    const card = element("article", "competitor-card");
-    const heading = element("div", "competitor-top");
-    heading.append(
-      element("h3", "", player.name),
-      element("span", "kind-label", kindNames[player.kind] || player.kind || "未标注类型"),
-    );
-    card.append(
-      heading,
-      element(
-        "p",
-        "",
-        player.policy || (player.style ? `内置策略：${player.style}` : "本轮未提供策略说明。"),
-      ),
-      element("p", "competitor-version", `${player.id}${player.version ? ` · ${player.version}` : ""}`),
-    );
-    $("competitor-list").append(card);
+    const item = element("li", "", player.name);
+    if (player.version) item.append(element("span", "", player.version));
+    $("competitor-list").append(item);
   }
-  if (!report.players.length) $("competitor-list").append(element("p", "empty-state", "本轮尚无参赛者。"));
   const config = report.config;
   $("schedule-detail").textContent =
-    `${config.rounds} 轮赛程，${config.openings?.length || 0} 种预置开局。${config.pairedColors ? "同组对手交换黑白执色，开局按配置固定。" : "各局执色与开局按运行配置记录。"}`;
+    `${config.rounds} 轮 · ${config.openings?.length || 0} 种开局${config.pairedColors ? " · 互换黑白" : ""}`;
   $("rules-detail").textContent =
-    `${config.boardSize} 路棋盘，白贴 ${scoreText(config.komi)} 目。每手时限 ${scoreText(config.turnTimeoutMS / 1000)} 秒，单局最多 ${config.maxMoves} 手。`;
+    `${config.boardSize} 路 · 白贴 ${scoreText(config.komi)} 目 · ${scoreText(config.turnTimeoutMS / 1000)} 秒/手 · 限 ${config.maxMoves} 手`;
   const provenance = {
     引擎版本: report.provenance?.engineVersion,
     "Go 版本": report.provenance?.goVersion,
-    "配置与名单 SHA256": report.provenance?.manifestSHA256,
+    "配置 SHA256": report.provenance?.manifestSHA256,
   };
   $("provenance-list").replaceChildren();
   for (const [label, value] of Object.entries(provenance))
@@ -255,7 +238,7 @@ function renderOverview() {
 function pause() {
   clearInterval(timer);
   timer = undefined;
-  if (active) $("toggle").textContent = ply === active.moves.length ? "重播棋谱" : "播放棋谱";
+  if (active) $("toggle").textContent = ply === active.moves.length ? "重播" : "播放";
   $("toggle").setAttribute("aria-pressed", "false");
 }
 function seek(position, animate = false, updateURL = true) {
@@ -274,7 +257,7 @@ function seek(position, animate = false, updateURL = true) {
   const point = move?.x >= 0 ? `${columns[move.x]}${active.size - move.y}` : "停一手";
   const last = ply
     ? `${ply % 2 ? "黑" : "白"} · ${point}${ply <= active.openingPlies ? " · 预置开局" : ""}`
-    : "开局 · 黑棋先行";
+    : "黑先";
   $("move-detail").textContent = last;
   $("black-captures").textContent = game.captures.black;
   $("white-captures").textContent = game.captures.white;
@@ -282,12 +265,12 @@ function seek(position, animate = false, updateURL = true) {
     "aria-label",
     `${active.size} 路棋盘，第 ${ply} 手，共 ${active.moves.length} 手，${last}，黑提 ${game.captures.black} 子，白提 ${game.captures.white} 子。`,
   );
-  $("result").textContent = `本局结果 · ${outcome(active)}`;
+  $("result").textContent = outcome(active);
   $("result-detail").textContent = reasonText(active);
   $("game-link").href = gameHash(active, ply);
   if (updateURL) history.replaceState(null, "", gameHash(active, ply));
   if (ply === active.moves.length) pause();
-  else if (!timer) $("toggle").textContent = "播放棋谱";
+  else if (!timer) $("toggle").textContent = "播放";
 }
 function selectGame(game, position) {
   pause();
@@ -295,7 +278,7 @@ function selectGame(game, position) {
   previous = null;
   $("black-name").textContent = playerName(game.black);
   $("white-name").textContent = playerName(game.white);
-  $("game-label").textContent = `第 ${report.games.indexOf(game) + 1} 局 · ${game.size} 路棋盘`;
+  $("game-label").textContent = `回放 · 第 ${report.games.indexOf(game) + 1} 局`;
   $("seek").max = game.moves.length;
   $("board-loading").hidden = true;
   for (const link of document.querySelectorAll(".match-row")) {
@@ -312,7 +295,7 @@ function toggle() {
   }
   if (ply === active.moves.length) seek(0);
   timer = setInterval(() => seek(ply + 1, true), 1100);
-  $("toggle").textContent = "暂停播放";
+  $("toggle").textContent = "暂停";
   $("toggle").setAttribute("aria-pressed", "true");
 }
 function route(scroll = false) {
@@ -348,7 +331,7 @@ async function loadReport() {
     report = validateReport(await response.json());
     renderOverview();
     route();
-    if (!report.games.length) $("board-loading").textContent = "本轮尚无已记录对局。";
+    if (!report.games.length) $("board-loading").textContent = "暂无棋谱";
   } catch (error) {
     $("error-message").textContent =
       error.name === "TimeoutError"
@@ -411,19 +394,18 @@ function start() {
           : ply + (event.key === "ArrowRight" ? 1 : -1),
     );
   });
+  $("match-list").addEventListener("click", (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.button !== 0) return;
+    const link = event.target.closest(".match-row");
+    // The same URL does not fire hashchange when a spectator selects it again.
+    if (link && link.hash === location.hash) {
+      event.preventDefault();
+      route(true);
+    }
+  });
   addEventListener("hashchange", () => route(true));
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pause();
-  });
-  $("copy-command").addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText($("run-command").textContent);
-      $("copy-note").textContent = "运行命令已复制。";
-      $("copy-command").textContent = "已复制";
-    } catch {
-      $("copy-note").textContent = "浏览器无法复制，请选中命令手动复制。";
-      $("copy-command").textContent = "请手动复制";
-    }
   });
   loadReport();
 }

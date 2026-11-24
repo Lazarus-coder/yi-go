@@ -53,7 +53,9 @@ function draw(previous = null, animateTurn = false) {
 }
 
 function preview() {
-  for (const [id, point, visible] of [["ghost", hover, canPlay() && hover && !game.board[hover.y * game.size + hover.x]], ["cursor", cursor, keyboard && canPlay()]]) {
+  const stone = busy === "play" ? cursor : (canPlay() && hover);
+  $("ghost").setAttribute("opacity", busy === "play" ? ".5" : ".22");
+  for (const [id, point, visible] of [["ghost", stone, stone && !game.board[stone.y * game.size + stone.x]], ["cursor", cursor, keyboard && canPlay()]]) {
     const marker = $(id);
     marker.toggleAttribute("hidden", !visible);
     if (point) {
@@ -70,17 +72,12 @@ function render() {
   if (opponent) {
     $("style").value = opponent.id;
     $("style-detail").textContent = opponent.description;
-    $("cpu-name").textContent = opponent.name;
-    $("cpu-detail").textContent = game.search
-      ? `白棋 · ${game.search.workers} 路搜索 · 读至 ${game.search.depth} 手`
-      : `白棋 · ${opponent.group}`;
+    $("cpu-detail").hidden = !game.search;
+    $("cpu-detail").textContent = game.search ? `${game.search.workers} 路搜索 · 读至 ${game.search.depth} 手` : "";
   }
-  $("board-size").textContent = sizeNames[game.size];
   $("move-count").textContent = `第 ${game.moves.length} 手`;
   $("black-captures").textContent = game.captures.black;
   $("white-captures").textContent = game.captures.white;
-  $("human-turn").hidden = !canPlay();
-  $("cpu-turn").hidden = busy !== "play" && busy !== "pass";
   $("undo").disabled = !engineReady || busy || !game.moves.length || restoreFailed;
   $("pass").disabled = !canPlay();
   $("resign").disabled = !canPlay();
@@ -89,34 +86,27 @@ function render() {
   $("style").disabled = !engineReady || busy || restoreFailed;
   board.setAttribute("aria-disabled", String(!canPlay()));
   let title = "轮到你了";
-  let detail = game.lastMove ? `CPU 落在 ${coordinate(game.lastMove.x, game.lastMove.y)}。轮到你执黑。` : "选择一个交叉点，落下第一颗棋子。";
-  if (!engineReady) {
-    title = engineFailed ? "棋局未能载入" : "正在载入棋局…";
-    detail = engineFailed ? "请刷新页面，重新载入后继续。" : "准备就绪后，即可落子。";
-  }
+  let detail = "";
+  if (!engineReady) title = engineFailed ? "棋局载入失败" : "正在载入棋局…";
   else if (busy) {
-    [title, detail] = {
-      play: [`${opponent.name}正在思考…`, "请稍候，白棋正在选择下一手。"],
-      pass: [`${opponent.name}正在应手…`, "你停了一手，等待白棋回应。"],
-      resign: ["正在结束棋局…", "保存本局结果。"],
-      restore: ["正在恢复棋局…", "读取已保存的落子与对手。"],
-      opponent: ["正在切换对手…", "保留当前棋局，从白棋的下一手生效。"],
-      undo: ["正在悔棋…", "撤回你与 CPU 的上一轮落子。"],
-      new: ["正在开始新对局…", "准备新的棋盘。"],
-      sync: ["正在更新棋局…", "请稍候。"],
+    title = {
+      play: `${opponent.name}思考中…`, pass: `${opponent.name}思考中…`,
+      resign: "正在结束棋局…", restore: "正在恢复棋局…", opponent: "正在切换对手…",
+      undo: "正在悔棋…", new: "正在开局…", sync: "正在更新棋局…",
     }[busy];
   }
-  else if (restoreFailed) { title = "棋局尚未恢复"; detail = "请刷新重试，或点击「新对局」重新开始。"; }
-  else if (game.resigned) { title = "白棋获胜"; detail = "你已认输。下一局，重新开始。"; }
+  else if (restoreFailed) { title = "棋局尚未恢复"; detail = "刷新重试，或开始新对局。"; }
+  else if (game.resigned) title = "你已认输，白棋胜";
   else if (game.over && game.score) {
     title = `${game.score.winner === 1 ? "黑棋" : "白棋"}胜 ${game.score.margin} 目`;
-    detail = `盘面估算：黑 ${game.score.black} · 白 ${game.score.white}（含贴目）。未判定死子。`;
-  } else if (game.moves.length && game.moves.at(-1).x === -1) {
-    detail = "CPU 停了一手。你可以继续落子，或停一手结束。";
-  }
+    detail = `黑 ${game.score.black} · 白 ${game.score.white}（含贴目）`;
+  } else if (game.moves.length) {
+    detail = game.lastMove ? `白棋 · ${coordinate(game.lastMove.x, game.lastMove.y)}` : "白棋停一手";
+  } else title = "执黑，点交叉处落子";
   $("status").textContent = title;
   $("status-detail").textContent = detail;
-  board.setAttribute("aria-label", `${sizeNames[game.size]}，${title}，光标 ${cursorDescription()}。使用方向键移动，回车或空格落子。`);
+  $("status-detail").hidden = !detail;
+  board.setAttribute("aria-label", `${sizeNames[game.size]}，${title}，光标 ${cursorDescription()}`);
   preview();
 }
 
@@ -155,6 +145,7 @@ async function request(payload, activity = payload.action) {
 
 function act(action, point = {}) {
   if (!canPlay()) return;
+  if (action === "play") { cursor = point; hover = null; }
   return request({ size: game.size, moves: game.moves, action, ...point });
 }
 
@@ -181,7 +172,7 @@ function pointerPoint(event) {
 }
 
 board.addEventListener("pointermove", (event) => {
-  if (event.pointerType === "touch") return;
+  if (event.pointerType === "touch" || !canPlay()) return;
   hover = pointerPoint(event);
   preview();
 });
@@ -189,7 +180,7 @@ board.addEventListener("pointerleave", () => { hover = null; preview(); });
 board.addEventListener("pointerdown", () => { keyboard = false; preview(); });
 board.addEventListener("click", (event) => {
   const point = pointerPoint(event);
-  if (point) { cursor = point; act("play", point); }
+  if (point) act("play", point);
 });
 board.addEventListener("focus", () => { keyboard = board.matches(":focus-visible"); preview(); });
 board.addEventListener("blur", () => { keyboard = false; preview(); });

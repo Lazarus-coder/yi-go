@@ -4,7 +4,7 @@ import {createReferee} from "./open-referee.js";
 
 const colors = ["black", "white"];
 const sides = {black:"黑棋", white:"白棋"};
-const seatNames = {cpu:"Yi Club Fighter", chat:"自带密钥模型", agent:"自有 Agent"};
+const seatNames = {cpu:"Yi Club Fighter", chat:"BYOK 模型", agent:"自有 Agent"};
 const emptyBoard = {size:9, board:Array(81).fill(0), moves:[], lastMove:null, captures:{black:0, white:0}};
 const timeLimitMS = 30000;
 
@@ -68,17 +68,25 @@ function setupPage() {
   let previous = null;
 
   function seatKinds() {
-    return Object.fromEntries(colors.map(color => [color, controls[color].querySelector(".kind").value]));
+    return Object.fromEntries(colors.map(color => [color, controls[color].querySelector(".kind:checked").value]));
   }
   function updateBudget() {
-    const maxMoves = $("max-moves").valueAsNumber;
-    if (!$("max-moves").validity.valid) {
-      $("budget").textContent = "请输入 2 到 144 之间的整数手数。";
+    const kinds = seatKinds();
+    const seats = Object.values(kinds);
+    const modelSeat = seats.includes("chat");
+    const agentSeat = seats.includes("agent");
+    $("privacy").hidden = $("budget").hidden = $("setup-links").hidden = !(modelSeat || agentSeat);
+    $("agent-guide").hidden = !agentSeat;
+    $("model-guide").hidden = !modelSeat;
+    $("privacy").textContent = modelSeat
+      ? "密钥仅发给所填服务。已发出的请求可能计费。" : "令牌仅发给所填 Agent。";
+    const cap = $("max-moves");
+    if (!cap.validity.valid) {
+      $("budget").textContent = "请输入 2 至 144 的整数。";
       return;
     }
-    const budget = callBudget(seatKinds(), maxMoves);
-    $("budget").textContent = "外部请求上限 · 黑 " + budget.black + " 次 / 白 " + budget.white
-      + " 次。每手限时 30 秒，达到手数上限按盘面计分。";
+    const budget = callBudget(kinds, cap.valueAsNumber);
+    $("budget").textContent = "请求上限 · 黑 " + budget.black + " 次 / 白 " + budget.white + " 次";
   }
   function display(board, move = "") {
     renderBoard(board, previous, !!move);
@@ -98,22 +106,22 @@ function setupPage() {
   for (const color of colors) {
     const fragment = $("seat-template").content.cloneNode(true);
     const seat = fragment.querySelector("fieldset");
-    const kind = seat.querySelector(".kind");
+    const kinds = seat.querySelectorAll(".kind");
     const url = seat.querySelector(".endpoint");
     const model = seat.querySelector(".model");
     const key = seat.querySelector(".key");
     seat.id = color + "-config";
     seat.querySelector("legend span").textContent = color === "black" ? "黑棋 · 先行" : "白棋";
     seat.querySelector(".seat-stone").classList.add(color);
-    kind.setAttribute("aria-label", sides[color] + "席位类型");
-    kind.value = color === "black" ? "chat" : "cpu";
+    for (const radio of kinds) radio.name = color + "-kind";
     function syncSeat(reset) {
-      const chat = kind.value === "chat";
-      const external = kind.value !== "cpu";
+      const kind = seat.querySelector(".kind:checked").value;
+      const chat = kind === "chat";
+      const external = kind !== "cpu";
       if (reset) { key.value = ""; url.value = ""; }
       seat.querySelector(".external-fields").hidden = !external;
       seat.querySelector(".model-field").hidden = !chat;
-      seat.querySelector(".url-label").textContent = chat ? "兼容 Chat Completions 的 API 基址" : "Agent 回合接口地址";
+      seat.querySelector(".url-label").textContent = chat ? "Chat Completions 基址" : "Agent 接口地址";
       seat.querySelector(".key-label").textContent = chat ? "API 密钥" : "Bearer 令牌";
       url.placeholder = chat ? "https://api.example.com/v1" : "https://agent.example.org/turn";
       url.disabled = key.disabled = !external;
@@ -121,9 +129,8 @@ function setupPage() {
       model.disabled = !chat;
       model.required = chat;
     }
-    kind.addEventListener("change", () => {
+    for (const radio of kinds) radio.addEventListener("change", () => {
       syncSeat(true);
-      if (!record) $(color + "-name").textContent = seatNames[kind.value];
       updateBudget();
     });
     url.addEventListener("input", () => { key.value = ""; });
@@ -132,6 +139,7 @@ function setupPage() {
     $("seats").append(fragment);
   }
   $("max-moves").addEventListener("input", updateBudget);
+  $("max-moves").addEventListener("invalid", event => { event.target.closest("details").open = true; });
   updateBudget();
   display(emptyBoard);
   $("start").disabled = false;
@@ -174,8 +182,8 @@ function setupPage() {
     $("limits").disabled = $("start").disabled = true;
     $("download").hidden = true;
     $("stop").hidden = false;
-    $("run-state").hidden = false;
-    $("status").textContent = "裁判正在准备棋盘…";
+    $("match-seats").hidden = $("board-state").hidden = $("run-state").hidden = false;
+    $("status").textContent = "准备开局…";
     previous = null;
     display(emptyBoard);
     callCount();
@@ -198,9 +206,9 @@ function setupPage() {
       $("status").textContent = who + " · " + why;
     } catch (error) {
       if (controller.signal.aborted) {
-        $("status").textContent = "已停止 · 棋谱保留至最后一手";
+        $("status").textContent = "对局已停止";
       } else {
-        $("status").textContent = "对局中断 · 已保留棋谱";
+        $("status").textContent = "对局中断";
         $("error").textContent = (side ? sides[side] + " · " : "") + error.message;
         $("error").hidden = false;
       }
@@ -208,7 +216,7 @@ function setupPage() {
       running = null;
       for (const color of colors) controls[color].disabled = false;
       $("limits").disabled = $("start").disabled = false;
-      $("start").firstChild.textContent = "重新开局 ";
+      $("start").firstChild.textContent = "再开一局 ";
       $("stop").hidden = true;
       $("download").hidden = false;
     }

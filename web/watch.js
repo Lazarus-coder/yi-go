@@ -7,8 +7,7 @@ let previous;
 function show(game, animate) {
   renderBoard(game, previous, animate);
   previous = game;
-  $("size-note").textContent = game.size + " 路棋盘";
-  $("ply").textContent = "第 " + game.moves.length + " 手";
+  $("ply").textContent = `${game.size} 路 · 第 ${game.moves.length} 手`;
   const move = game.moves.at(-1);
   const color = game.moves.length % 2 ? "黑" : "白";
   const coord = move?.x >= 0 ? "ABCDEFGHJKLMNOPQRST"[move.x] + (game.size - move.y) : "停一手";
@@ -21,6 +20,7 @@ function outcome(g) {
   return g.resigned ? winner + "棋中盘胜" : winner + "棋胜 " + g.score.margin + " 目";
 }
 async function watchLive() {
+  $("watch-mode").textContent = "实时观战";
   if (!/^[A-Za-z0-9_-]+$/.test(table)) { $("watch-status").textContent = "棋桌地址无效"; return; }
   let revision = -1;
   async function refresh() {
@@ -34,7 +34,7 @@ async function watchLive() {
         show(state.game, !!previous && delta > 0 && delta <= 2);
         revision = state.revision;
       }
-      $("players").textContent = "实时棋桌 · " + (state.opponent === "agent" ? "Agent 对 Agent" : "Agent 对 CPU · " + state.opponent);
+      $("players").textContent = state.opponent === "agent" ? "Agent 对 Agent" : "Agent 对 CPU · " + state.opponent;
       $("watch-status").textContent = outcome(state.game);
       if (state.game.over) return;
     } catch { $("watch-status").textContent = "连接中断，正在重连…"; }
@@ -58,7 +58,9 @@ function watchReplay() {
     show(game,animate);
     $("seek").value=i;
     $("prev").disabled=i===0; $("next").disabled=i===frames.length-1;
-    $("watch-status").textContent=i===frames.length-1 ? exhibition.result : "示范棋谱";
+    const finished = i === frames.length-1;
+    $("watch-status").hidden = !finished;
+    $("watch-status").textContent = finished ? exhibition.result : "";
     if(i===frames.length-1) pause();
   }
   function start() {
