@@ -38,9 +38,8 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: clamp(36
 }
 #board { display: block; width: 100%; height: auto; touch-action: manipulation; outline: none; }
 #board:focus-visible { box-shadow: inset 0 0 0 3px #a5493280; border-radius: 9px; }
-#board[aria-disabled="false"] { cursor: crosshair; }
+#board[data-playable] { cursor: crosshair; }
 .board-help { color: var(--muted); font-size: 11px; text-align: center; line-height: 1.8; margin-top: 21px; }
-.board-help span { padding: 0 10px; }
 .sidebar { padding-top: 1px; min-width: 0; }
 .eyebrow { margin: 0 0 17px; color: #969789; font-size: 10px; letter-spacing: .18em; }
 h1 { margin: 0; font: 32px/1.4 "Songti SC", "Noto Serif CJK SC", SimSun, serif; font-weight: 500; letter-spacing: .02em; }
@@ -87,7 +86,6 @@ footer { display: flex; justify-content: space-between; padding: 22px 0 26px; bo
   .header { height: 98px; }
   main { gap: 28px; grid-template-columns: minmax(0, 1fr) 226px; }
   h1 { font-size: 28px; }
-  .board-help span { padding: 0 4px; }
   .board-help { font-size: 10px; }
 }
 @media (max-width: 680px) {
