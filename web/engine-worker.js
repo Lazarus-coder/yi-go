@@ -6,10 +6,12 @@ self.onmessage = ({ data }) => {
     return;
   }
   try {
-    const result = JSON.parse(self.yiRun(JSON.stringify(data.payload)));
+    const run = { run: self.yiRun, analyze: self.yiAnalyze, merge: self.yiMerge }[data.operation || "run"];
+    if (!run) throw new Error("Unknown worker operation");
+    const result = JSON.parse(run(JSON.stringify(data.payload)));
     self.postMessage({ id: data.id, ...result });
   } catch {
-    self.postMessage({ id: data.id, error: "棋局计算失败，请刷新后重试。当前棋局已保留。" });
+    self.postMessage({ type: "workererror" });
   }
 };
 

@@ -3,72 +3,21 @@ package game
 import (
 	"math"
 	"sort"
+	"time"
 )
-
-type searchStats struct {
-	nodes int
-	depth int
-}
 
 type treeSearch struct {
 	limit, nodes, width int
 	seeds               []candidate
+	deadline            time.Time
 }
 
-// searchMove uses real adversarial look-ahead with a deterministic node budget.
-// shortcut: selective replies can miss distant tesuji; use a full Go engine for competitive play.
-func (g *Game) searchMove(ranked []candidate, budget int) Move {
-	move, _ := g.search(ranked, budget)
-	return move
-}
-
-func (g *Game) search(ranked []candidate, budget int) (Move, searchStats) {
-	if g.Over || len(ranked) == 0 {
-		return Move{-1, -1}, searchStats{}
-	}
-	width, roots := 5, 8
-	if budget >= 1000 {
-		width, roots = 6, 12
-	}
-	seeds := ranked[:min(len(ranked), roots)]
-	rootMoves := append([]candidate(nil), seeds...)
-	if g.Passes > 0 {
-		rootMoves = append(rootMoves, candidate{move: Move{-1, -1}})
-	}
-	s := treeSearch{limit: max(0, budget), width: width, seeds: seeds}
-	best, completedDepth := ranked[0].move, 0
-	// Discard an unfinished iteration so that the budget never favors whichever
-	// root move happens to be visited first in the deeper iteration.
-	for depth := 1; depth <= 5; depth++ {
-		iterationBest, bestValue := best, math.Inf(-1)
-		complete := true
-		for _, option := range rootMoves {
-			child, ok := s.child(g, option.move)
-			if !ok {
-				complete = false
-				break
-			}
-			value, done := s.negamax(child, depth-1, math.Inf(-1), math.Inf(1))
-			if !done {
-				complete = false
-				break
-			}
-			// The persona's shape preference only breaks close evaluations.
-			value = -value + min(100, max(-100, option.score))*0.005
-			if value > bestValue {
-				iterationBest, bestValue = option.move, value
-			}
-		}
-		if !complete {
-			break
-		}
-		best, completedDepth = iterationBest, depth
-	}
-	return best, searchStats{nodes: s.nodes, depth: completedDepth}
+func (s *treeSearch) exhausted() bool {
+	return s.nodes >= s.limit || (!s.deadline.IsZero() && !time.Now().Before(s.deadline))
 }
 
 func (s *treeSearch) child(g *Game, move Move) (*Game, bool) {
-	if s.nodes >= s.limit {
+	if s.exhausted() {
 		return nil, false
 	}
 	s.nodes++
@@ -86,12 +35,15 @@ func (s *treeSearch) negamax(g *Game, depth int, alpha, beta float64) (float64, 
 	if depth == 0 || g.Over {
 		return evaluatePosition(g), true
 	}
+	if s.exhausted() {
+		return 0, false
+	}
 	best, searched := math.Inf(-1), 0
 	for _, option := range g.searchReplies(s.seeds) {
 		if searched == s.width {
 			break
 		}
-		if s.nodes >= s.limit {
+		if s.exhausted() {
 			return 0, false
 		}
 		child, legal := s.child(g, option.move)

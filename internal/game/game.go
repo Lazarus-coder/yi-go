@@ -12,6 +12,9 @@ const (
 	Black = 1
 	White = 2
 	Komi  = 6.5
+
+	maxBoardSize = 19
+	maxPoints    = maxBoardSize * maxBoardSize
 )
 
 // Move uses zero-based board coordinates. {-1, -1} means pass.
@@ -50,7 +53,7 @@ type Game struct {
 }
 
 func New(size int) (*Game, error) {
-	if size != 9 && size != 13 && size != 19 {
+	if size != 9 && size != 13 && size != maxBoardSize {
 		return nil, errors.New("棋盘尺寸须为 9、13 或 19")
 	}
 	return &Game{
@@ -190,12 +193,14 @@ type region struct {
 // An empty region touching both colors (or neither) is neutral.
 func emptyRegions(board []int, size int) []region {
 	regions := make([]region, len(board))
-	seen := make([]bool, len(board))
+	var seen [maxPoints]bool
+	var queue [maxPoints]int
 	for start, color := range board {
 		if color != Empty || seen[start] {
 			continue
 		}
-		points := []int{start}
+		points := queue[:1]
+		points[0] = start
 		seen[start] = true
 		borders := [3]bool{}
 		for i := 0; i < len(points); i++ {
@@ -223,8 +228,7 @@ func emptyRegions(board []int, size int) []region {
 
 func groupAt(board []int, size, start int) (stones, liberties []int) {
 	color := board[start]
-	seen := make([]bool, len(board))
-	seenLiberty := make([]bool, len(board))
+	var seen, seenLiberty [maxPoints]bool
 	stones = []int{start}
 	seen[start] = true
 	for i := 0; i < len(stones); i++ {

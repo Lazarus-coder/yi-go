@@ -3,10 +3,11 @@ package game
 // Opponent is the shared catalogue entry used by both browser and server.
 // The private profile stays in Go; the UI only receives its explanation.
 type Opponent struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Group       string `json:"group"`
-	Description string `json:"description"`
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	Group       string        `json:"group"`
+	Description string        `json:"description"`
+	Search      *SearchConfig `json:"search,omitempty"`
 	profile     cpuStyle
 }
 
@@ -16,7 +17,7 @@ type cpuStyle struct {
 	lineWeight, ownWeight, enemyWeight float64
 	cornerWeight, stability            float64
 	chase, scatter                     float64
-	search                             int
+	search                             SearchConfig
 }
 
 // Line numbers are zero-based; distances are grid steps. National styles are
@@ -70,23 +71,30 @@ var opponentCatalog = []Opponent{
 	{
 		ID: "pro-territory", Name: "研究型 · 实地派", Group: "进阶搜索",
 		Description: "以角边实地为先验，有限搜索你的反击，挑选较稳妥的着点。",
-		profile:     cpuStyle{capture: 100, save: 90, threat: 14, line: 2, lineWeight: 2.5, ownDistance: 4, ownWeight: 1.5, enemyDistance: 4, enemyWeight: 0.8, cornerWeight: 0.4, stability: 3, search: 320},
+		profile:     cpuStyle{capture: 100, save: 90, threat: 14, line: 2, lineWeight: 2.5, ownDistance: 4, ownWeight: 1.5, enemyDistance: 4, enemyWeight: 0.8, cornerWeight: 0.4, stability: 3, search: specialistSearch},
 	},
 	{
 		ID: "pro-influence", Name: "研究型 · 厚势派", Group: "进阶搜索",
 		Description: "以四线、支援和宽气为先验，搜索局部攻防中的稳健选择。",
-		profile:     cpuStyle{capture: 100, save: 95, threat: 18, line: 3, lineWeight: 2.5, ownDistance: 2, ownWeight: 1.7, enemyDistance: 3, enemyWeight: 1, cornerWeight: 0.02, stability: 4, search: 320},
+		profile:     cpuStyle{capture: 100, save: 95, threat: 18, line: 3, lineWeight: 2.5, ownDistance: 2, ownWeight: 1.7, enemyDistance: 3, enemyWeight: 1, cornerWeight: 0.02, stability: 4, search: specialistSearch},
 	},
 	{
 		ID: "alphago", Name: "AlphaGo 灵感", Group: "进阶搜索",
 		Description: "本项目计算预算最高：候选先验加对抗搜索；无神经网络，并非 AlphaGo 棋力。",
-		profile:     cpuStyle{capture: 110, save: 100, threat: 20, line: 2, lineWeight: 2, ownDistance: 3, ownWeight: 1.5, enemyDistance: 3, enemyWeight: 1, cornerWeight: 0.1, stability: 4, search: 1200},
+		profile:     cpuStyle{capture: 110, save: 100, threat: 20, line: 2, lineWeight: 2, ownDistance: 3, ownWeight: 1.5, enemyDistance: 3, enemyWeight: 1, cornerWeight: 0.1, stability: 4, search: intensiveSearch},
 	},
 }
 
 // Opponents returns a copy so callers cannot change the built-in catalogue.
 func Opponents() []Opponent {
-	return append([]Opponent(nil), opponentCatalog...)
+	list := append([]Opponent(nil), opponentCatalog...)
+	for i := range list {
+		config := (&Game{Style: list[i].ID}).SearchConfig()
+		if config.Roots > 0 {
+			list[i].Search = &config
+		}
+	}
+	return list
 }
 
 func profileFor(id string) cpuStyle {

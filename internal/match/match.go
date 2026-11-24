@@ -28,10 +28,44 @@ type Request struct {
 type Result struct {
 	*game.Game
 	Opponents []game.Opponent `json:"opponents,omitempty"`
+	Search    *SearchStats    `json:"search,omitempty"`
+}
+
+// SearchStats reports only work with identical meaning in native and WASM runs.
+type SearchStats struct {
+	Workers int `json:"workers"`
+	Depth   int `json:"depth"`
 }
 
 // Run always reconstructs a fresh game; rejected requests cannot alter a save.
 func Run(input Request) (*Result, error) {
+	result, err := prepare(input)
+	if err != nil {
+		return nil, err
+	}
+	if result.Over || result.Next != game.White {
+		return result, nil
+	}
+	move, searched := result.ChooseMoveWithStats()
+	var stats *SearchStats
+	if searched.Workers > 0 {
+		stats = &SearchStats{Workers: searched.Workers, Depth: searched.Depth}
+	}
+	return applyReply(result, move, stats)
+}
+
+// Both native and merged worker choices pass through the authoritative rules.
+func applyReply(result *Result, move game.Move, stats *SearchStats) (*Result, error) {
+	if err := result.Play(move); err != nil {
+		return nil, fmt.Errorf("%w：%v", ErrCPU, err)
+	}
+	result.Search = stats
+	return result, nil
+}
+
+// prepare validates the saved game and human action, stopping before a CPU
+// reply so independent workers can analyze exactly the same position.
+func prepare(input Request) (*Result, error) {
 	g, err := restore(input)
 	if err != nil {
 		return nil, err
@@ -62,11 +96,6 @@ func Run(input Request) (*Result, error) {
 		}
 		if err := g.Play(move); err != nil {
 			return nil, err
-		}
-		if !g.Over {
-			if err := g.Play(g.ChooseMove()); err != nil {
-				return nil, fmt.Errorf("%w：%v", ErrCPU, err)
-			}
 		}
 	default:
 		return nil, errors.New("未知操作")

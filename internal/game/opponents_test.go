@@ -18,6 +18,13 @@ func TestOpponentCatalogue(t *testing.T) {
 			t.Fatalf("duplicate or incomplete opponent: %+v", entry)
 		}
 		seen[entry.ID] = true
+		if entry.Group == "进阶搜索" {
+			if entry.Search == nil || entry.Search.Roots < 32 || entry.Search.ThinkMS <= 0 {
+				t.Fatalf("advanced opponent lacks shared search configuration: %+v", entry)
+			}
+		} else if entry.Search != nil {
+			t.Fatalf("heuristic opponent unexpectedly searches: %+v", entry)
+		}
 		groups[entry.Group]++
 		if id, err := NormalizeStyle(entry.ID); err != nil || id != entry.ID {
 			t.Fatalf("listed opponent %q cannot be selected: %v", entry.ID, err)

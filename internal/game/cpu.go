@@ -3,7 +3,9 @@ package game
 import (
 	"cmp"
 	"math"
+	"runtime"
 	"slices"
+	"time"
 )
 
 type candidate struct {
@@ -11,17 +13,23 @@ type candidate struct {
 	score float64
 }
 
-// ChooseMove uses personality scores; advanced opponents also inspect replies.
-// Everything is deterministic so a position is useful as a teaching example.
+// ChooseMove preserves weak personalities; advanced opponents adapt search depth
+// to the machine. Scores at any completed depth remain deterministic.
 func (g *Game) ChooseMove() Move {
+	move, _ := g.ChooseMoveWithStats()
+	return move
+}
+
+func (g *Game) ChooseMoveWithStats() (Move, SearchStats) {
+	start := time.Now()
 	ranked := g.rankMoves(g.Style)
 	if len(ranked) == 0 {
-		return Move{-1, -1}
+		return Move{-1, -1}, SearchStats{}
 	}
-	if budget := profileFor(g.Style).search; budget > 0 {
-		return g.searchMove(ranked, budget)
+	if config := g.SearchConfig(); config.Roots > 0 {
+		return g.searchNative(ranked, config, runtime.GOMAXPROCS(0), start)
 	}
-	return ranked[0].move
+	return ranked[0].move, SearchStats{}
 }
 
 // rankMoves never searches: it can also rank an opponent's possible replies.

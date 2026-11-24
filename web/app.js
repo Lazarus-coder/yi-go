@@ -71,7 +71,9 @@ function render() {
     $("style").value = opponent.id;
     $("style-detail").textContent = opponent.description;
     $("cpu-name").textContent = opponent.name;
-    $("cpu-detail").textContent = `白棋 · ${opponent.group}`;
+    $("cpu-detail").textContent = game.search
+      ? `白棋 · ${game.search.workers} 路搜索 · 读至 ${game.search.depth} 手`
+      : `白棋 · ${opponent.group}`;
   }
   $("board-size").textContent = sizeNames[game.size];
   $("move-count").textContent = `第 ${game.moves.length} 手`;
