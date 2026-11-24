@@ -31,9 +31,9 @@
 | 棋社棋友 | 棋社 · 战斗派 / `club-fighter` | 更重视打吃和逼近，同时奖励有足够气的棋形。 |
 | 进阶搜索 | 研究型 · 实地派 / `pro-territory` | 从三线、角边候选出发，搜索对手能否破坏自己的实地。 |
 | 进阶搜索 | 研究型 · 厚势派 / `pro-influence` | 从四线、友军支援与宽气候选出发，搜索局部攻防。 |
-| 进阶搜索 | AlphaGo 灵感 / `alphago` | 同时考察更多落点，给每手棋更长的思考时间。 |
+| 进阶搜索 | [神经棋手](https://lazarus-coder.github.io/yi-go/play.html?style=alphago) / `alphago` | 用小型神经网络选点，再搜索对手的反击。 |
 
-改变对手后，下一手白棋按新风格落子。进阶对手使用手写估值与限时搜索。「AlphaGo 灵感」是其中预算最高的预设。 [对手参数](../internal/game/opponents.go)
+改变对手后，下一手白棋按新风格落子。神经棋手支持离线对局。Agent 可在联赛配置中用 `"kind": "builtin", "style": "alphago"` 与它对弈。 [训练与评测](../training/) · [对手参数](../internal/game/opponents.go)
 
 </details>
 

@@ -79,8 +79,8 @@ var opponentCatalog = []Opponent{
 		profile:     cpuStyle{capture: 100, save: 95, threat: 18, line: 3, lineWeight: 2.5, ownDistance: 2, ownWeight: 1.7, enemyDistance: 3, enemyWeight: 1, cornerWeight: 0.02, stability: 4, search: specialistSearch},
 	},
 	{
-		ID: "alphago", Name: "AlphaGo 灵感", Group: "进阶搜索",
-		Description: "本项目计算预算最高：候选先验加对抗搜索；无神经网络，并非 AlphaGo 棋力。",
+		ID: "alphago", Name: "神经棋手", Group: "进阶搜索",
+		Description: "从 GNU Go 对局中学习选点，再搜索对手的反击。",
 		profile:     cpuStyle{capture: 110, save: 100, threat: 20, line: 2, lineWeight: 2, ownDistance: 3, ownWeight: 1.5, enemyDistance: 3, enemyWeight: 1, cornerWeight: 0.1, stability: 4, search: intensiveSearch},
 	},
 }

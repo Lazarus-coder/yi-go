@@ -32,6 +32,11 @@ for (const { id: style } of catalogue) {
 }
 assert.equal(run({ size: 13, moves: [], action: "sync" }).game.board.length, 169);
 assert.equal(run({ size: 19, moves: [], action: "sync" }).game.board.length, 361);
+// Match the native policy on the same 9×9 opening and search depth.
+const opening = { size: 9, style: "alphago", moves: [], action: "play", x: 4, y: 4 };
+const { analysis } = JSON.parse(globalThis.yiAnalyze(JSON.stringify({ request: opening, depth: 1 })));
+assert.ok(analysis.complete);
+assert.deepEqual(analysis.move, { x: 4, y: 2 }, "neural reply to E5 at depth one is E7");
 assert.ok(run({ size: 9, action: "sync", style: "unknown" }).error);
 assert.ok(run({ size: 9, action: "sync", extra: true }).error);
 assert.ok(JSON.parse(globalThis.yiRun("{} {}")).error);

@@ -236,8 +236,15 @@ async function start() {
     }
     $("save-note").textContent = "浏览器无法保存，关闭页面后棋局会丢失";
   }
-  if (!saved) { render(); return; }
-  restoreFailed = true;
-  await request({ size: saved.size, style: saved.style || "china", moves: saved.moves, resigned: saved.resigned || 0, action: "sync" }, "restore");
+  const url = new URL(location.href);
+  const linkedStyle = opponents.find(opponent => opponent.id === url.searchParams.get("style"))?.id;
+  if (!saved && !linkedStyle) { render(); return; }
+  const position = saved || game;
+  restoreFailed = Boolean(saved);
+  const restored = await request({ size: position.size, style: linkedStyle || position.style || "china", moves: position.moves, resigned: position.resigned || 0, action: "sync" }, "restore");
+  if (restored && linkedStyle && ["http:", "https:"].includes(url.protocol)) {
+    url.searchParams.delete("style");
+    history.replaceState(history.state, "", url);
+  }
 }
 start();

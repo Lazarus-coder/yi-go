@@ -34,10 +34,21 @@ func (g *Game) ChooseMoveWithStats() (Move, SearchStats) {
 
 // rankMoves never searches: it can also rank an opponent's possible replies.
 func (g *Game) rankMoves(id string) []candidate {
+	if id == "alphago" {
+		return g.rankCandidates(id, scoreNeuralMove)
+	}
+	return g.rankCandidates(id, nil)
+}
+
+func (g *Game) rankCandidates(id string, policy func(Move, policyFeatures, float64) float64) []candidate {
 	if g.Over {
 		return nil
 	}
 	style := profileFor(id)
+	var position policyBoard
+	if policy != nil {
+		position.prepare(g)
+	}
 	regions := emptyRegions(g.Board, g.Size)
 	ranked := make([]candidate, 0, len(g.Board))
 	var seed uint32
@@ -62,9 +73,7 @@ func (g *Game) rankMoves(id string) []candidate {
 		// Filling our own territory adds no area. Small enemy regions are
 		// usually settled too; do not invade them without a tactical reason.
 		territory := regions[point]
-		settled := territory.owner == g.Next ||
-			(territory.owner == opponent(g.Next) && territory.size <= 6)
-		if settled && captured == 0 && saved == 0 {
+		if settledForPlay(territory, g.Next, policy != nil) && captured == 0 && saved == 0 {
 			continue
 		}
 		// Avoid offering a group with only one liberty unless it captures.
@@ -89,6 +98,10 @@ func (g *Game) rankMoves(id string) []candidate {
 		}
 		if len(liberties) == 1 {
 			value -= 30 * float64(len(stones))
+		}
+		if policy != nil {
+			features := position.features(g, point, len(liberties), len(stones), captured, saved, threatened)
+			value = policy(move, features, value)
 		}
 		ranked = append(ranked, candidate{move, value})
 	}
@@ -174,4 +187,13 @@ func abs(value int) int {
 		return -value
 	}
 	return value
+}
+
+// A single opening stone can border every empty point. A small enclosure is a
+// useful pruning signal; a board-sized region still needs to be contested.
+func settledForPlay(area region, side int, neural bool) bool {
+	if area.owner == side && !neural {
+		return true
+	}
+	return area.owner != Empty && area.size <= 6
 }

@@ -142,7 +142,16 @@ func (g *Game) searchShard(plan searchPlan, shard, shards, depth, nodeBudget int
 			result.Complete = false
 			return result
 		}
-		value = -value + min(100, max(-100, option.score))*0.005
+		value = -value
+		if g.Style == "alphago" {
+			// Trust the root policy less as concrete replies become visible.
+			// Twelve evaluation units are worth one healthy stone.
+			if option.move.X >= 0 {
+				value += (4 / float64(depth)) * max(-6, option.score-plan.roots[0].score)
+			}
+		} else {
+			value += min(100, max(-100, option.score)) * 0.005
+		}
 		if result.Rank == len(plan.roots) || value > result.Score {
 			result.Move, result.Score, result.Rank = option.move, value, rank
 		}

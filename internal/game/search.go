@@ -125,8 +125,7 @@ func (g *Game) searchReplies(seeds []candidate) []candidate {
 			continue
 		}
 		territory := regions[point]
-		if !urgent[point] && (territory.owner == g.Next ||
-			(territory.owner == opponent(g.Next) && territory.size <= 6)) {
+		if !urgent[point] && settledForPlay(territory, g.Next, g.Style == "alphago") {
 			continue
 		}
 		candidates = append(candidates, candidate{move: Move{point % g.Size, point / g.Size}, score: priority[point]})
