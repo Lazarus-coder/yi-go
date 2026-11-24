@@ -3,7 +3,7 @@ package match
 import (
 	"errors"
 
-	"yi-go/internal/game"
+	"github.com/Lazarus-coder/yi-go/internal/game"
 )
 
 // AnalysisRequest is used only by the WebAssembly bridge, not the HTTP API.

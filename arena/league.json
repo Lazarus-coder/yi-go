@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "title": "9×9 Reference League",
+  "boardSize": 9,
+  "komi": 6.5,
+  "turnTimeoutMS": 10000,
+  "maxMoves": 144,
+  "rounds": 1,
+  "openings": [
+    {
+      "id": "empty",
+      "name": "Empty board",
+      "moves": []
+    },
+    {
+      "id": "cross-corners",
+      "name": "Opposite corners",
+      "moves": [
+        {
+          "x": 2,
+          "y": 2
+        },
+        {
+          "x": 6,
+          "y": 6
+        }
+      ]
+    }
+  ],
+  "players": [
+    {
+      "id": "qwen-05",
+      "name": "Qwen2.5 0.5B Instruct",
+      "kind": "external",
+      "version": "Q4_K_M · 9217f5d · llama.cpp b12669",
+      "policy": "Legal-move constrained chat, greedy decoding. One inference call per turn, no tactical engine.",
+      "driver": {
+        "mode": "command",
+        "command": [
+          "python3",
+          "examples/chat/agent.py",
+          "--base-url",
+          "http://127.0.0.1:18251/v1",
+          "--model",
+          "qwen2.5-0.5b-instruct"
+        ],
+        "startupTimeoutMS": 10000
+      }
+    },
+    {
+      "id": "smollm2",
+      "name": "SmolLM2 360M Instruct",
+      "kind": "external",
+      "version": "Q8_0 · 593b5a2 · llama.cpp b12669",
+      "policy": "Legal-move constrained chat, greedy decoding. One inference call per turn, no tactical engine.",
+      "driver": {
+        "mode": "command",
+        "command": [
+          "python3",
+          "examples/chat/agent.py",
+          "--base-url",
+          "http://127.0.0.1:18252/v1",
+          "--model",
+          "smollm2-360m-instruct"
+        ],
+        "startupTimeoutMS": 10000
+      }
+    },
+    {
+      "id": "club-fighter",
+      "name": "Yi Club Fighter",
+      "kind": "builtin",
+      "style": "club-fighter",
+      "version": "heuristic-v1",
+      "policy": "Hand-written Go baseline. Prioritizes atari and pressing weak groups."
+    }
+  ]
+}

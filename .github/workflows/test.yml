@@ -1,4 +1,4 @@
-name: Go and standalone HTML
+name: Yi Arena
 on:
   push:
   pull_request:
@@ -18,10 +18,47 @@ jobs:
         with:
           node-version: 24
       - run: go test -race ./...
-      - run: go vet ./...
-      - run: go build ./...
+      - run: go vet ./... && go build ./...
+      - run: python3 scripts/check-chat.py
+      - run: python3 -m unittest discover -s examples/gtp
+      - name: Seat a GTP engine on both colors
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnugo
+          YI_GTP_COMMAND='["/usr/games/gnugo","--mode","gtp","--level","1"]' go test ./internal/arena -run '^TestExternalGTPReference$' -count=1 -v
+      - run: node --test web/arena/arena.test.mjs
+      - name: Replay the published league and verify standings
+        run: go run ./cmd/arena verify -config arena/league.json -report web/arena/report.json
+      - name: Play two seats in isolated containers
+        run: |
+          docker build -t yi-agent:local examples/agent
+          YI_TEST_OCI_IMAGE=yi-agent:local go test ./internal/arena -run '^TestOCIPlayer$' -count=1 -v
+          go run ./cmd/arena run -config examples/sandbox.json -out "$RUNNER_TEMP/duel"
+          go run ./cmd/arena verify -config examples/sandbox.json -report "$RUNNER_TEMP/duel/report.json"
+          python3 -c 'import json,sys; g=json.load(open(sys.argv[1]))["games"]; assert len(g)==2 and all(len(x["moves"])>1 and not x["result"].get("fault") for x in g)' "$RUNNER_TEMP/duel/report.json"
       - run: sh scripts/build-pages.sh
       - run: node scripts/smoke-wasm.mjs
       - run: node --test scripts/engine.test.mjs
       - run: node scripts/build-html.mjs
       - run: node --test scripts/html.test.mjs
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: dist
+  publish:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Publish verified standings and replays
+        id: deploy
+        uses: actions/deploy-pages@v5

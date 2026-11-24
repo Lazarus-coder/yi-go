@@ -3,8 +3,10 @@ set -eu
 
 cd "$(dirname "$0")/.."
 mkdir -p dist
-cp -R web/. dist/
-sed 's/data-engine="http"/data-engine="wasm"/' web/index.html > dist/index.html
+cp AGENTS.md dist/llms.txt
+cp web/*.html web/*.js web/*.css web/*.jpg dist/
+cp web/arena/index.html web/arena/arena.css web/arena/arena.js web/arena/report.json dist/
+sed 's/data-engine="http"/data-engine="wasm"/' web/play.html > dist/play.html
 GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o dist/game.wasm ./cmd/wasm
 runtime="$(go env GOROOT)/lib/wasm/wasm_exec.js"
 if [ ! -f "$runtime" ]; then
@@ -12,4 +14,4 @@ if [ ! -f "$runtime" ]; then
 fi
 cp "$runtime" dist/wasm_exec.js
 touch dist/.nojekyll
-echo "GitHub Pages files are ready in dist/"
+echo "Arena and practice board are ready in dist/"

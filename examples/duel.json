@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "title": "Local adapter duel",
+  "boardSize": 9,
+  "komi": 6.5,
+  "turnTimeoutMS": 10000,
+  "maxMoves": 144,
+  "rounds": 1,
+  "openings": [
+    {
+      "id": "empty",
+      "name": "Empty board",
+      "moves": []
+    }
+  ],
+  "players": [
+    {
+      "id": "python-reference",
+      "name": "Python reference",
+      "kind": "external",
+      "version": "v1",
+      "driver": {
+        "mode": "command",
+        "command": [
+          "python3",
+          "examples/agent/agent.py"
+        ]
+      }
+    },
+    {
+      "id": "club-fighter",
+      "name": "Yi Club Fighter",
+      "kind": "builtin",
+      "style": "club-fighter",
+      "version": "heuristic-v1",
+      "policy": "Hand-written Go baseline. Prioritizes atari and pressing weak groups."
+    }
+  ]
+}

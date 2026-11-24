@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"yi-go/internal/game"
+	"github.com/Lazarus-coder/yi-go/internal/game"
 )
 
 var (

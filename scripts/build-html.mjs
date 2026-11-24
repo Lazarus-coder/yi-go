@@ -73,7 +73,8 @@ async function page(name) {
     if (!reference || reference.startsWith("data:") || reference.startsWith("#")) continue;
     html = html.replace(match[0], match[0].replace(reference, await dataURL(localPath(reference))));
   }
-  html = html.replace(/href=(["'])\.\/(?:index\.html)?\1/g, 'href="#play"')
+  html = html.replace(/href=(["'])\.\/(?:index\.html)?\1/g, 'href="https://lazarus-coder.github.io/yi-go/"')
+    .replace(/href=(["'])\.\/play\.html\1/g, 'href="#play"')
     .replace(/href=(["'])\.\/watch\.html\1/g, 'href="#watch"');
   for (const match of html.matchAll(/<a\b[^>]*>/gi)) {
     const href = attribute(match[0], "href");
@@ -84,7 +85,7 @@ async function page(name) {
   return { html, body, entry: entries[0], title: html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || "弈" };
 }
 
-const play = await page("index.html");
+const play = await page("play.html");
 const watch = await page("watch.html");
 let worker = await readFile(localPath("engine-worker.js"), "utf8");
 for (const asset of ["wasm_exec.js", "game.wasm"]) {

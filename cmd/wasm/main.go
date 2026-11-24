@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall/js"
 
-	"yi-go/internal/match"
+	"github.com/Lazarus-coder/yi-go/internal/match"
 )
 
 type response struct {

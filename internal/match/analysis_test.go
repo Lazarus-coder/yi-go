@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"yi-go/internal/game"
+	"github.com/Lazarus-coder/yi-go/internal/game"
 )
 
 func openingRequest(style string) Request {

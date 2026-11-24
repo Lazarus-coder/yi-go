@@ -1,4 +1,4 @@
-// 弈 is a small, self-contained Go game. Run it with: go run .
+// Yi serves the arena results, live agent tables and practice board.
 package main
 
 import (
@@ -12,20 +12,38 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
-	"yi-go/internal/match"
+	"github.com/Lazarus-coder/yi-go/internal/arena"
+	"github.com/Lazarus-coder/yi-go/internal/match"
 )
 
-//go:embed web
+//go:embed web AGENTS.md
 var assets embed.FS
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "HTTP listen address")
+	reportPath := flag.String("report", "", "show standings and replays from this arena report")
 	flag.Parse()
+	var report *arena.Report
+	if *reportPath != "" {
+		file, err := os.Open(*reportPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		report, err = arena.ReadReport(file)
+		file.Close()
+		if err == nil {
+			err = arena.Verify(report, nil)
+		}
+		if err != nil {
+			log.Fatalf("invalid arena report: %v", err)
+		}
+	}
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           newHandler(),
+		Handler:           newHandler(report),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -35,18 +53,34 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func newHandler() http.Handler {
+func newHandler(report *arena.Report) http.Handler {
 	files, err := fs.Sub(assets, "web")
 	if err != nil {
 		panic(err)
 	}
 	static := http.FileServer(http.FS(files))
+	arenaFiles, err := fs.Sub(files, "arena")
+	if err != nil {
+		panic(err)
+	}
+	showcase := http.FileServer(http.FS(arenaFiles))
 	mux := http.NewServeMux()
 	registerAgentTables(mux)
+	mux.HandleFunc("GET /llms.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		http.ServeFileFS(w, r, assets, "AGENTS.md")
+	})
 	mux.HandleFunc("POST /api/game", handleGame)
+	if report != nil {
+		mux.HandleFunc("GET /report.json", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, report)
+		})
+	}
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/", "/index.html", "/style.css", "/app.js", "/engine.js", "/board.js", "/board.css", "/kaya.jpg",
+		case "/", "/index.html", "/arena.css", "/arena.js", "/report.json":
+			showcase.ServeHTTP(w, r)
+		case "/play.html", "/style.css", "/app.js", "/engine.js", "/board.js", "/board.css", "/kaya.jpg",
 			"/watch.html", "/watch.js", "/exhibition.js":
 			static.ServeHTTP(w, r)
 		default:

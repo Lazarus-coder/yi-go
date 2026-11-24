@@ -4,3 +4,5 @@
 coverage.out
 .DS_Store
 /dist/
+/runs/
+__pycache__/

@@ -1,356 +1,78 @@
-# 弈 · YI
+# Yi Arena · 弈
 
-一个用 Go 写的极简围棋应用，也是一个可以从头读完的编程示范项目。
+A Go (围棋 / Baduk) benchmark for agents. Seat two programs, give them the same openings in both colors, and inspect every move behind their scores. The Go referee owns the rules, clock and results. Players can be language models, search engines or a script in any language.
 
-Go 标准库负责规则与 CPU；原生 HTML / CSS / JavaScript 绘制界面。没有第三方 Go 依赖、数据库或前端框架。十二位陪练有不同的习惯：有的追子忘救棋，有的反复补棋；进阶对手会搜索你的反击。
+**[Leaderboard and replays](https://lazarus-coder.github.io/yi-go/)** · [Agent entry](https://lazarus-coder.github.io/yi-go/llms.txt) · [Wire protocol](docs/protocol.md) · [Published experiment](arena/README.md) · [Practice board](https://lazarus-coder.github.io/yi-go/play.html)
 
-可以生成一个双击即玩的离线 HTML，也可以运行本地 Go 服务。两种方式共用 Go 棋规、对手目录和算法。这个版本以本地运行和离线分发为主，不依赖线上部署。
+[![Two language models playing in the 9×9 Reference League, with standings and a move-by-move replay](docs/arena.jpg)](https://lazarus-coder.github.io/yi-go/)
 
-**[下载离线版 yi-go.html](https://github.com/Lazarus-coder/yi-go/releases/latest/download/yi-go.html)** · [公开源码](https://github.com/Lazarus-coder/yi-go)
+## Run your first match
 
-![木纹九路棋盘与对手选择界面](docs/preview.jpg)
-
-## 开始一局
-
-构建需要 **Go 1.24 或更新版本**；单文件打包另需 **Node.js 24 或更新版本**。只使用标准库和 Node 内置模块。
+Install Go 1.24+ and Python 3, then clone the repository.
 
 ```sh
 git clone https://github.com/Lazarus-coder/yi-go.git
 cd yi-go
+go run ./cmd/arena run -config examples/duel.json -out runs/first-duel
+go run ./cmd/arena verify -config examples/duel.json -report runs/first-duel/report.json
 ```
 
-### 双击离线 HTML
+To open the resulting leaderboard and replay viewer, run `go run . -report runs/first-duel/report.json` and visit [localhost:8080](http://127.0.0.1:8080/).
+
+The duel starts an external Python player against a bundled Go baseline, then swaps colors. The referee writes the moves, board positions, outcomes and standings to the run directory. Use a fresh output directory for a new run.
+
+To install the standalone referee CLI on your PATH, run `go install github.com/Lazarus-coder/yi-go/cmd/arena@v0.4.0`. The `arena run` and `arena verify` commands take the same flags as the examples above.
+
+## Bring a player
+
+| What you have | Entry |
+| --- | --- |
+| A program in any language | Implement two JSON-lines messages, then put your executable and arguments in a copy of the duel manifest. The [Python agent](examples/agent/agent.py) is a working starter. |
+| A language model | The [chat adapter](examples/chat/agent.py) sends the board, history and legal moves to a chat-completions endpoint. The public league uses this exact adapter with two local models. |
+| An existing GTP engine | The [GTP bridge](examples/gtp) translates referee turns for engines such as GNU Go. |
+| A container image | Build your player as an OCI image and set the driver to `oci`. Each seat gets a fresh sandbox for each game. |
+| A conversational agent with HTTP tools | Install the [agent skill](skills/yi-go-play/SKILL.md), create a live table and give each agent its seat key. Agents wait for a revision change and submit a move. Spectators follow the table URL. |
+
+The referee sends a **turn** only when it needs a decision. The agent receives its color, request ID, board diagram, list of legal moves, history and time limit. It can keep memory between turns in the same game. It replies with one move correlated to that request. An agent can use private reasoning or internal tools without publishing a thought trace. [Wire protocol and failure handling](docs/protocol.md)
+
+### Run isolated agents
 
 ```sh
-sh scripts/build-pages.sh
-node scripts/build-html.mjs
+docker build -t yi-agent:local examples/agent
+go run ./cmd/arena run -config examples/sandbox.json -out runs/isolated
 ```
 
-打开生成的 **`dist/yi-go.html`** 即可下棋，也可以把这一个文件发给别人。页面、棋盘素材、Go 运行时和 WASM 都包含在文件中；游玩时不需要 Go、Node、服务器或外部网络请求。CPU 在后台 Web Worker 中运行，进阶对手可同时使用多个核。
+The example runs two independent containers from the same image. Replace either seat with your own image to compare implementations. The OCI driver uses a read-only root filesystem, no network, no host mounts and explicit resource limits. The command driver runs a **trusted program** under your own account and can reach a local or hosted inference service. Put credentials in the trusted adapter's environment. [Driver configuration](docs/protocol.md)
 
-单文件模式提供浏览器内的人机对弈和示范棋谱回放。本地 agent 的实时棋桌与观战需要下面的 Go 服务。
+## What the leaderboard measures
 
-### 运行本地 Go 服务
+Within each run, every pair plays each opening twice, switching colors. The referee applies simple ko, prohibits suicide and scores area with 6.5 komi. Two passes score the board as played. The move cap also scores the current position. Resignations, illegal moves, protocol faults and timeouts have explicit outcomes. Standings award one point for a win and half for a draw. Results describe the published schedule, hardware and agent policies. [Manifest](arena/league.json) · [Model weights, prompts and run conditions](arena/README.md)
+
+To enter the public league, open a pull request with a versioned adapter or image recipe, a roster entry and local run instructions. A maintainer reviews the executable and runs the full paired schedule under the published rules. Update the report and manifest together. CI replays the records, checks results and standings against the manifest, then publishes the verified report on GitHub Pages. A replay confirms the recorded game; identifying the executable or model that produced it depends on the operator and its provenance.
+
+## Explore locally
 
 ```sh
 go run .
 ```
 
-打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。默认只监听本机，按 `Ctrl+C` 退出。
+Open [the local arena](http://127.0.0.1:8080/) to browse the bundled standings and replays. The [practice board](http://127.0.0.1:8080/play.html) lets a human challenge twelve CPU styles. The [standalone HTML download](https://github.com/Lazarus-coder/yi-go/releases/latest/download/yi-go.html) keeps human practice available offline. [棋规、教学源码与离线玩法](docs/practice.md)
+
+## Read the source
+
+- [Referee, scheduling and verification](internal/arena) · [CLI](cmd/arena)
+- [Board rules and opponent algorithms](internal/game)
+- [Interactive agent tables](agents.go) · [Agent skill](skills/yi-go-play/SKILL.md)
+- [Public results interface](web/arena) · [Build and Pages workflow](.github/workflows/test.yml)
 
 ```sh
-# 构建后可单独分发可执行文件，无需另带 web 目录
-go build -o yi-go .
-./yi-go
-
-# 换一个本地端口
-go run . -addr 127.0.0.1:8081
-```
-
-Windows 下可使用 `go build -o yi-go.exe .`，然后运行 `.\yi-go.exe`。构建产物需与目标系统和处理器架构匹配。
-
-你执黑，CPU 执白。支持 9、13、19 路棋盘，点击交叉点落子；也可以聚焦棋盘后用方向键移动，按回车或空格落子。可以停一手、认输、悔棋或开始新局。悔棋撤回最近一轮落子，浏览器自动保存当前棋谱，刷新后继续。
-
-在「CPU 对手」中选择陪练。每位棋手的说明会告诉你它看重什么、容易漏掉什么。中途换人从下一次白棋应手生效。进阶对手应手后，白棋名下会显示这手棋用了几路搜索、完整读到了几手。悔棋、刷新和开始新对局都会记住你的选择。旧存档继续使用原先的中、日、韩棋风。
-
-棋盘的木纹取自为本项目生成的榧木材质图。SVG 单独绘制网格、星位和棋子。落子动画采样重力与碰撞回弹，接触阴影随高度改变。提子从碰撞时刻开始离盘。开启系统「减弱动态效果」会直接显示落点，并暂停棋谱的自动播放。
-
-终局采用简化面积计分。请先提净死子，再连续停手。
-
-### 本地 agent 对弈与观战
-
-从已克隆的仓库根目录执行以下命令，即可为 Codex 安装对弈技能。其他支持 HTTP 的 agent 也可直接读取同一份说明。
-
-```sh
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-cp -R skills/yi-go-play "${CODEX_HOME:-$HOME/.codex}/skills/"
-```
-
-供本地编程 agent 使用的操作说明在 [skills/yi-go-play/SKILL.md](skills/yi-go-play/SKILL.md)。先启动 Go 服务，再让 agent 按该技能创建或加入一张棋桌、读取局面并落子。
-
-浏览器打开 `http://127.0.0.1:8080/watch.html?table=<棋桌 ID>` 观战。棋桌用于本地 agent 的交替落子，与首页自动接 CPU 应手的人机模式分开。具体请求、行棋方检查与重试方式以技能文件为准。
-
-`/watch.html` 不带棋桌参数时播放示范棋谱，可暂停、逐手查看和拖动进度。离线单文件也包含这间「观战室」，通过页面入口或 `#watch` 打开。
-
-内置棋谱记录了一场实际的本地对局：黑方为 Codex agent，白方为棋社战斗派，77 手后按本项目计分黑胜 2.5 目，提子为 8 比 1。每个棋盘快照及最终得分都由 Go 重放生成，无需在 JavaScript 中重写提子规则。这是一盘演示棋，不是棋力测试集。
-
-## 从哪里读
-
-```text
-yi-go/
-├── main.go                     本地 HTTP 入口、静态资源嵌入
-├── main_test.go                HTTP 校验与恢复、悔棋、认输流程测试
-├── agents.go / agents_test.go  本地棋桌、席位、版本校验与 API 测试
-├── cmd/wasm/main.go             浏览器与 Go 之间的 JSON 桥接
-├── internal/match/
-│   ├── match.go                两种运行方式共用的棋谱重放与完整回合
-│   └── analysis.go             浏览器分片分析与最后落子的校验
-├── internal/game/
-│   ├── game.go                 棋盘、气、提子、简单劫、终局计分
-│   ├── opponents.go            十二位陪练的名称、分组、说明与参数
-│   ├── cpu.go                  对手的候选落点与局部战术评分
-│   ├── parallel.go             搜索分工、迭代加深与完整结果合并
-│   ├── search.go               负极大搜索、应手选择与局面估值
-│   ├── game_test.go            规则、基础战术与 CPU 自对弈测试
-│   ├── style_test.go           原有棋风兼容性与不同选择
-│   ├── opponents_test.go       目录、典型新手错误与新对手自弈
-│   └── search_test.go          倒扑、分工合并、预算与状态隔离测试
-├── web/
-│   ├── index.html             页面结构与棋盘 SVG
-│   ├── style.css              响应式布局与视觉样式
-│   ├── app.js                 棋盘绘制、交互、请求与本地存档
-│   ├── board.js               共享棋盘绘制
-│   ├── watch.html / watch.js  实时棋桌观战与示范棋谱回放
-│   ├── engine.js              HTTP 调用与浏览器 Worker 调度
-│   └── engine-worker.js       加载 Go WASM，在后台线程计算
-├── scripts/
-│   ├── build-pages.sh         生成 dist/ 静态目录和真实 Go WASM
-│   ├── build-html.mjs         把静态目录打包成离线单文件
-│   ├── smoke-wasm.mjs         真实 WASM 产物验证
-│   ├── engine.test.mjs        调用适配与失败恢复测试
-│   └── html.test.mjs          单文件完整性与禁止网络请求时的真实对弈
-├── skills/yi-go-play/SKILL.md  本地 agent 下棋与观战操作说明
-├── .github/workflows/test.yml  持续集成检查
-├── docs/preview.jpg            界面截图
-├── go.mod                     Go 版本与模块声明
-└── LICENSE                    MIT 许可证
-```
-
-建议按下面的顺序阅读，每一步都能找到对应的可运行行为：
-
-1. [game.go](internal/game/game.go)：先看 `Game` 和 `Play`，理解一手棋怎样改变状态；再看 `groupAt` 与 `tryMove`。
-2. [game_test.go](internal/game/game_test.go)：读提子、自杀和打劫的局面测试，把规则对应到具体棋形。
-3. [opponents.go](internal/game/opponents.go) 与 [cpu.go](internal/game/cpu.go)：看同一个合法候选怎样因为不同习惯得到不同评分。
-4. 在 `searchNative` 看候选怎样分工，再读 `negamax` 和倒扑测试，看对手怎样推翻眼前贪吃的选择。[并行调度](internal/game/parallel.go) · [搜索与估值](internal/game/search.go)
-5. [match.go](internal/match/match.go)：从 `Run` 走到 `restore`，追踪一轮人类落子与 CPU 应手；再看 [main.go](main.go) 如何接上 HTTP。
-6. [app.js](web/app.js)：从 `act`、`request` 到棋盘绘制，最后看存档恢复和悔棋。
-7. [WASM 入口](cmd/wasm/main.go) 与 [engine-worker.js](web/engine-worker.js)：看浏览器如何把同一盘棋分给多个 Worker，再由 Go 合并结果并落子。
-
-## 一手棋如何成立
-
-棋盘是长度为 `size * size` 的 `[]int`，用 `board[y*size+x]` 访问。`0` 表示空点，`1` 表示黑棋，`2` 表示白棋。
-
-`groupAt` 用洪水填充遍历上下左右相连的同色棋子，同时收集相邻空点。棋子和气分别去重，因此同一个空点即使接触一块棋的多颗棋子，也只算一口气。遍历用切片和循环完成，无需递归。
-
-`tryMove` 按顺序检查，需要试下时使用棋盘副本：
-
-1. 坐标在棋盘内，交叉点没有棋子。
-2. 复制棋盘并放下棋子，移除相邻的、已经没有气的对方棋块。
-3. 检查新落子的己方棋块是否还有气；没有气则拒绝。
-4. 检查新棋盘是否与上一手之前的棋盘相同；相同则触发简单劫。
-
-**先提子、再检查自杀**很关键：吃掉对方棋子可能为自己的棋块腾出气。所有检查通过后，`Play` 才提交新棋盘、更新提子数和棋谱，并交换行棋方；失败时原局面保持不变。CPU 也使用同一个 `tryMove`，不用另写一套规则。
-
-停一手用 `Move{-1, -1}` 表示。连续两次停一手结束对局；正常落子会清零连续停手次数。终局时，`emptyRegions` 再次使用洪水填充，把只接触一种颜色的连通空区计入该方，接触双方或没有接触棋子的空区计为中立。得分是盘面棋子数加这些空点数，白棋另加 `6.5`；提子数只用于展示，不再额外加分。
-
-## 十二位陪练
-
-棋风参数集中在对手目录，进阶对手各自引用一个搜索配置。前端调用 `game.Opponents()` 获取名称、分组、说明、ID 和进阶棋手的搜索配置。存档和 API 通过 `style` 选择对手。[对手目录](internal/game/opponents.go) · [搜索配置](internal/game/parallel.go)
-
-| 分组 | 对手 / `style` | 下法与容易出现的问题 |
-| --- | --- | --- |
-| 入门陪练 | 追子新手 / `beginner-chaser` | 强烈追逐你刚落下的棋，救己方打吃的权重很低；会追子忘救棋。 |
-| 入门陪练 | 胆小新手 / `beginner-timid` | 喜欢紧挨己子、远离敌子；安全的地方也反复补棋，让出大场。 |
-| 入门陪练 | 贴边新手 / `beginner-edge` | 把一线设成理想线位，落子常过低、过分依赖边角。 |
-| 入门陪练 | 随手新手 / `beginner-scatter` | 喜欢远处空点，叠加由棋盘确定的分数扰动；容易漏看眼前小规模攻防。 |
-| 经典棋风 | 中国 · 厚势均衡 / `china` | 偏四线与友军支援，兼顾攻守。 |
-| 经典棋风 | 日本 · 布局取地 / `japan` | 偏三线角地和舒展间距，较少主动接触。 |
-| 经典棋风 | 韩国 · 主动攻杀 / `korea` | 提高打吃权重，偏好贴身施压。 |
-| 棋社棋友 | 棋社 · 稳健派 / `club-balanced` | 更重视救棋和新棋块的气，偏向稳健支援。 |
-| 棋社棋友 | 棋社 · 战斗派 / `club-fighter` | 更重视打吃和逼近，同时奖励有足够气的棋形。 |
-| 进阶搜索 | 研究型 · 实地派 / `pro-territory` | 从三线、角边候选出发，搜索对手能否破坏自己的实地。 |
-| 进阶搜索 | 研究型 · 厚势派 / `pro-influence` | 从四线、友军支援与宽气候选出发，搜索局部攻防。 |
-| 进阶搜索 | AlphaGo 灵感 / `alphago` | 同时考察更多落点，给每手棋更长的思考时间。 |
-
-三国棋风是便于教学的游戏化预设，不代表所有该国棋手。分组描述算法与下法；“研究型”和 AlphaGo 灵感都没有职业段位、Elo 或胜率保证。这里没有 AlphaGo 权重、训练数据或神经网络。
-
-### 候选落点和性格评分
-
-[`rankMoves`](internal/game/cpu.go) 枚举空点，在副本上试下，淘汰非法落点，并使用几条共同规则减少无意义的候选：
-
-- 保护真眼；这里的真眼判断只看相邻棋子与对角保护。
-- 通常不填自己的空区，也不侵入不超过 6 点的对方空区；能提子或救出被打吃棋块时例外。
-- 不选择落下后只有一口气、同时又没有提子的点。
-
-新手的错误发生在**合法候选的取舍**，不会通过自杀、违反打劫规则或破坏存档来模拟低水平。
-
-```text
-分数 = 提子权重 × 提掉的敌子数
-     + 救棋权重 × 救出的己子数
-     + 威胁权重 × 受到威胁的敌子数
-     + 布局评分 + 气数奖励 + 性格偏好
-```
-
-“救出”指相邻己方棋块原本只有一口气，落子后合并棋块有多于一口气；“威胁”统计相邻原有两口气的敌方棋块。两者都按棋子数计分，同一棋块不会重复计算。气数奖励最多计算四口气；若提子后的新棋块仍只有一口气，再扣除 `30 × 新棋块棋子数`。
-
-布局评分只做距离运算：距离最近边缘为 `edge`，线位从 `0` 开始；己子、敌子与角部都用曼哈顿距离。没有某一颜色的棋子时，跳过对应项。
-
-```text
-布局分 = -线位权重 × |edge - 目标线位|
-       - 己方距离权重 × |最近己子距离 - 目标己距|
-       - 对方距离权重 × |最近敌子距离 - 目标敌距|
-       - 角部权重 × 到最近角的距离
-```
-
-原有三种棋风继续使用 `100 × 提子 + 70 × 救棋` 和线位权重 `2`，参数和确定性落点保持兼容：
-
-| 预设 / `style` | 威胁权重 | 目标线 | 己距 / 权重 | 敌距 / 权重 | 角部权重 |
-| --- | ---: | --- | --- | --- | ---: |
-| 中国 / `china` | 12 | 四线（3） | 2 / 2.0 | 3 / 0.8 | 0.08 |
-| 日本 / `japan` | 8 | 三线（2） | 4 / 1.2 | 5 / 0.35 | 0.35 |
-| 韩国 / `korea` | 20 | 三线（2） | 3 / 1.2 | 1 / 2.8 | 0.08 |
-
-新手还会有明确的“执念”：追子新手为远离你上一手的每一格扣 `10` 分，却只为每颗救出的己子加 `8` 分；贴边新手的线位权重为 `10`，会明显偏向一线。随手新手用棋盘内容生成固定扰动，同一局面重复计算仍会走同一手，没有时钟或随机数种子造成的不可复现结果。全部参数可在目录里直接修改。
-
-九位不搜索的陪练直接选评分最高的点。同分时保留按行扫描遇到的第一个落点；没有合适候选时停一手。
-
-### 搜索如何看到反击
-
-三个进阶对手先用各自的棋风给落点排序，再逐层读棋。它们试下自己的可能落点，轮到对手时，搜索对自己最不利的应手。这个过程称为负极大搜索。已经无法改变选择的分支会通过 alpha-beta 剪枝提前停止。[搜索源码](internal/game/search.go)
-
-- 每个计算任务负责不同的第一手。所有任务完成同一深度后，程序才比较分数。同分由原来的候选顺序决定，先算完的任务没有优先权。
-- 回复候选包括全盘气紧的棋块、上一手附近和根节点的主要备选，不会在每个节点重新枚举所有空点。
-- 节点评估考虑盘面棋子、被打吃或只剩两口气的棋块、小块围空；开放大空区不会因为只接触一颗棋子就全算成领地。
-- 一次加深中，每个根候选最多检查 8192 个节点。搜索达到时间或节点上限时，采用最近一个完整深度的结果。机器速度、棋盘大小和当前负载都会影响能读完的深度，因此同一局面在不同机器上可能有不同的应手。
-
-这是一个能实际检查对方反击的小型搜索程序；候选裁剪和手写估值仍会漏掉远处妙手、复杂死活与全局价值。AlphaGo 灵感只是这组算法中预算最高的预设，不是 AlphaGo 的复现，也不保证每个局面都比其他对手走得更好。
-
-### 怎样用到多个 CPU 核
-
-本地服务读取 Go 运行时的 `GOMAXPROCS`，把候选分给可并行运行的 goroutine。它会按本手候选数收缩并行度。两位研究型棋手每手最多分配 32 个根候选，搜索目标为 150 毫秒。AlphaGo 灵感档最多分配 64 个根候选，目标为 300 毫秒。两档深度上限分别为六手和八手。单独运行 `GOMAXPROCS=1 go run .` 可以在同一台电脑上体验单核设置。Agent 棋桌上的内置对手也使用这套搜索。
-
-离线 HTML 从一个 Worker 启动，遇到进阶对手的落子才增加 Worker。页面根据浏览器报告的逻辑处理器数和可用的设备内存提示决定数量，最多使用八个 Worker，多核设备为界面预留一个逻辑处理器。每个 Worker 有独立的 Go WASM 实例。第一次启用多路搜索需要载入额外实例，后续回合会重用它们。额外 Worker 无法运行时，这手棋可以回到单路计算。九位按棋形评分的陪练仍沿用各自的选点习惯。
-
-### 可以复现的局面
-
-- 九路空棋盘上黑棋占天元 `E5`：中国预设应 `D6`，日本应 `C7`，韩国应 `E6`。这是厚势、角地和贴身施压的三个不同选择。
-- 相同的己方安全棋子与敌方中央棋子：追子新手贴敌，胆小新手贴己，贴边新手下一线，随手新手远走。测试检查这些具体行为。
-- 两颗己子正被打吃，敌方却在远处落了一手：均衡对手会救棋，追子新手可能跑去追那颗新子。
-- 一个能提一子、随后却被对手倒扑吃掉三子的局面：贪吃评分会选中陷阱，测试在固定的二手和三手深度都能看到反击并避开。
-
-这些例子分别在 [style_test.go](internal/game/style_test.go)、[opponents_test.go](internal/game/opponents_test.go) 和 [search_test.go](internal/game/search_test.go) 中固定下来。它们验证预期行为和特定战术，不等于系统性的棋力评测。
-
-## 人机对局如何运行
-
-一次普通落子的路径是：
-
-```text
-浏览器交给 HTTP 服务或 Web Worker
-  → 提交完整棋谱、棋风与新落点
-  → Go 从空棋盘重放、验证历史
-  → 应用黑棋落子
-  → 若尚未终局，计算并应用 CPU 白棋应手
-  → 返回完整局面，浏览器绘制并保存棋谱
-```
-
-浏览器的 `localStorage` 只保存棋盘尺寸、棋风、落子历史和认输标记。刷新时用 `sync` 重放；悔棋时截短历史再 `sync`；新对局则提交空历史；切换棋风也用 `sync`，但不改历史。旧存档缺少棋风时，默认使用 `china`。
-
-本地版在 Go HTTP 服务里调用 `match.Run`。离线 HTML 与静态版通过 Web Worker 调用 Go WASM。多个 Worker 各自分析分给自己的候选，最后由 Go 验证并应用选中的应手。两种方式都从棋谱重建棋盘、提子数与劫状态；首页的人机对弈不需要服务端会话或数据库。
-
-这个选择把恢复和悔棋统一成了同一件事，也让每次操作都容易单独复现。代价是每次都要传递和计算完整历史，适合本项目的小规模对局。离线 HTML 落子不依赖 HTTP API；棋谱留在当前浏览器中。存档属于当前浏览器的来源；换端口、换浏览器或清理站点数据不会沿用原存档。直接打开本地文件时，保存能力还取决于浏览器的本地文件存储策略。
-
-## 静态目录与单文件打包
-
-```sh
-sh scripts/build-pages.sh
-
-# 生成可双击的 dist/yi-go.html
-node scripts/build-html.mjs
-
-# 调试未打包的静态目录，需要 Python 3；也可用其他静态文件服务器
-python3 -m http.server 8081 --bind 127.0.0.1 --directory dist
-```
-
-`dist/yi-go.html` 可以直接双击；`dist/index.html` 是开发用的模块页面，需要通过 `http://127.0.0.1:8081/` 访问。这两个产物的打开方式不同。
-
-`build-pages.sh` 沿用原有脚本名：以 `GOOS=js GOARCH=wasm` 编译 `cmd/wasm`，复制与编译器匹配的官方 `wasm_exec.js`，并将页面运行模式切换为 `wasm`。`build-html.mjs` 再把这些资源装进一个 HTML。`dist/` 是生成目录，不提交到 Git。
-
-这些命令只在本地生成产物，不会发布网站。静态目录保留相对资源路径，可由普通静态文件服务器托管；实时 agent 棋桌需要 Go 服务，静态服务器不能替代它。
-
-## 试一次 API
-
-以下示例适用于本地 Go 服务；离线 HTML 没有 HTTP API。服务运行后，下面的请求会使用日本棋风，在空九路棋盘的 `(2, 2)` 落下一颗黑子，并返回 CPU 应手后的局面：
-
-```sh
-curl http://127.0.0.1:8080/api/game \
-  -H 'Content-Type: application/json' \
-  -d '{"size":9,"moves":[],"style":"japan","action":"play","x":2,"y":2}'
-```
-
-坐标从左上角 `(0, 0)` 开始，`x` 向右、`y` 向下；例中的落点在界面上是 `C7`。请求始终携带**操作之前**的 `moves` 历史，其中已经包含此前双方的落子。未终局的历史必须包含完整回合，不能缺少 CPU 应手。
-
-| `action` | 行为 |
-| --- | --- |
-| `sync` | 只重放 `moves`，不调用 CPU；恢复认输局面时附带 `resigned: 1` |
-| `play` | 黑棋在 `x`、`y` 落子，未终局时自动接上 CPU 应手 |
-| `pass` | 黑棋停一手，未终局时自动接上 CPU 应手 |
-| `resign` | 黑棋认输，结束对局 |
-
-第一次请求时传入 `{"size":9,"moves":[],"action":"sync","includeOpponents":true}`，响应中的 `opponents` 给出当前版本的对手 ID、分组、名称和描述。后续把选中的 ID 作为 `style` 传入，省略时使用 `china`。搜索过的应手会额外返回 `search.workers` 和 `search.depth`，分别表示参与该结果的并行任务数和完整搜索深度。完整局面包括 `style`、一维 `board`、双方 `moves`、`next`、`lastMove`、`captures`、`passes`、`over`、`resigned` 和终局 `score`。继续下棋时，把响应的 `moves` 和当前 `style` 用于下一次请求；不需要上传 `board`。失败返回相应 HTTP 错误状态和 `{"error":"原因"}`。
-
-### 本地 agent 棋桌 API
-
-棋桌把当前局面保留在本地服务中，适合两个 agent 轮流落子，或一个 agent 挑战内置 CPU。先创建棋桌：
-
-```sh
-curl http://127.0.0.1:8080/api/tables \
-  -H 'Content-Type: application/json' \
-  -d '{"size":9,"opponent":"agent"}'
-```
-
-`opponent` 可以是 `agent`，也可以是目录中的 CPU ID，例如 `alphago`。创建结果给出棋桌与席位信息；之后每次先读取状态，再用当前版本号落子。
-
-| 请求 | 用途 |
-| --- | --- |
-| `GET /api/tables/{id}` | 读取 `game`、`revision`、`turn`、`ascii`、`legal` 和 `opponent`，供 agent 判断与观战。 |
-| `POST /api/tables/{id}/moves` | 请求体为 `{"revision":0,"move":"D4"}`；`move` 也可为 `pass` 或 `resign`。 |
-
-落子请求必须带 `Authorization: Bearer <seatKey>`，使用对应席位的密钥。版本号用于防止按旧局面误落子：发生冲突后重新读取状态，再决定下一手。观战只需要棋桌 ID，不需要席位密钥。本地棋桌驻留在服务内存中，停止服务后会消失；首页的浏览器存档不受此影响。可直接交给 agent 执行的完整流程见 [yi-go-play 技能](skills/yi-go-play/SKILL.md)。
-
-## 运行检查
-
-```sh
-go test ./...
-go vet ./...
-go build ./...
-
-# 可选：在支持 race detector 的环境检查数据竞争
 go test -race ./...
-
-# 在同一 19 路局面比较 1、4、8 路搜索的耗时、平均深度和节点数
-go test ./internal/game -run '^$' -bench BenchmarkSearch19 -benchtime=3x
-
-# 静态版本：需要 Node.js 24 或更新版本，只用内置模块
+go vet ./...
+go run ./cmd/arena verify -config arena/league.json -report web/arena/report.json
 sh scripts/build-pages.sh
 node scripts/build-html.mjs
 node scripts/smoke-wasm.mjs
 node --test scripts/engine.test.mjs scripts/html.test.mjs
 ```
 
-规则测试覆盖成块提子、先提子再检查自杀、简单劫、非法落子不改变局面、连续停手、计分和认输。原有三种棋风保留吃子、救棋、保眼、同局面差异和 9／13／19 路完整自弈测试；新增九位对手都有九路自弈终局测试，另有四种新手习惯和漏救棋的局面测试。
-
-搜索测试验证倒扑、工作量上限、固定深度下串行与并行结果一致、试下时原棋盘和棋谱保持完整，以及三种棋盘上的合法着法。HTTP 测试覆盖输入校验、恢复、悔棋、认输与对手切换；WASM 测试加载真实编译产物，检查目录、所有对手和桥接输入；适配层测试检查按需增加 Worker、搜索出错时退回单路、超时和资源回收。
-
-单文件测试检查页面、素材与模块是否完整，并禁止外部网络请求，用实际嵌入的 Go Worker 下一轮棋、再恢复局面。观战回放还检查帧数与棋盘尺寸。
-
-这些检查证明已列出的规则与案例成立，不代表完整死活求解或竞技棋力认证。修改评分时既要看新案例，也要保留原有规则和兼容性测试；只看自弈能结束，不能说明对手变强了。
-
-## 可以动手改什么
-
-- 在 `opponents.go` 改动某位棋手的选点评分，保留同一份棋谱，比较落点变化；为你希望保留的行为增加一个局面测试。
-- 为搜索增加一个“眼前得子、随后受损”的局面，检查增大预算是否真的看到了反击。
-- 给计分补充一个双方共享空区的测试，观察为什么它不会被计入任何一方。
-- 用 API 提交非法落点，检查错误响应；再重放原棋谱，验证局面不变。
-- 在现有 `moves` 之上尝试棋谱导出，先约定坐标、停手和认输如何表达。
-
-## 当前边界
-
-- 对手按下法和搜索能力分组，尚未通过人类段位、Elo 或系统性胜率标定。AlphaGo 灵感使用有限对抗搜索与手写估值，没有神经网络；更高预算也不保证每一手更好。
-- 采用简单劫，不检测长周期重复局面。
-- 面积计分不自动处理死子或复杂双活。停手前需完成必要提子，结果仅作练习参考。
-- 首页固定人类执黑、CPU 执白；本地 agent 棋桌按席位交替行棋。不提供让子、互联网匹配、账号或云同步。
-- 首页只保存当前一局，新对局会替换浏览器存档。人机 API 请求体上限为 64 KiB，输入棋谱最多接受 2000 手。
-
-## 许可
-
-[MIT License](LICENSE)。欢迎阅读、修改和用作教学示例。
+The static build uses Node.js 24+ for the standalone packager and tests. The native referee and web server use the Go standard library. [MIT License](LICENSE)

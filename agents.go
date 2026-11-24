@@ -5,8 +5,6 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net"
@@ -18,17 +16,17 @@ import (
 	"sync"
 	"time"
 
-	"yi-go/internal/game"
+	"github.com/Lazarus-coder/yi-go/internal/game"
 )
 
 const (
 	maxAgentTables = 64
 	maxTableMoves  = 2000
-	boardColumns   = "ABCDEFGHJKLMNOPQRST"
 )
 
 type agentTable struct {
 	mu                 sync.Mutex
+	changed            chan struct{}
 	game               *game.Game
 	revision           int
 	opponent           string
@@ -108,7 +106,7 @@ func (tables *agentTables) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	table := &agentTable{game: g, opponent: input.Opponent, blackKey: blackKey, whiteKey: whiteKey, updated: time.Now()}
+	table := &agentTable{game: g, changed: make(chan struct{}), opponent: input.Opponent, blackKey: blackKey, whiteKey: whiteKey, updated: time.Now()}
 	tables.mu.Lock()
 	for existingID, existing := range tables.tables {
 		existing.mu.Lock()
@@ -152,8 +150,35 @@ func (tables *agentTables) read(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "棋桌不存在，或已过期。")
 		return
 	}
-	defer table.mu.Unlock()
 	w.Header().Set("Cache-Control", "no-store")
+	if value := r.URL.Query().Get("after"); value != "" {
+		after, err := strconv.Atoi(value)
+		if err != nil || after < 0 || after > table.revision {
+			table.mu.Unlock()
+			writeError(w, http.StatusBadRequest, "after must be an observed nonnegative revision")
+			return
+		}
+		if after == table.revision && !table.game.Over {
+			changed := table.changed
+			table.mu.Unlock()
+			timer := time.NewTimer(15 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-timer.C:
+				w.WriteHeader(http.StatusNoContent)
+				return
+			case <-changed:
+				table = tables.lock(r.PathValue("id"))
+				if table == nil {
+					writeError(w, http.StatusNotFound, "棋桌不存在，或已过期。")
+					return
+				}
+			}
+		}
+	}
+	defer table.mu.Unlock()
 	writeJSON(w, http.StatusOK, table.state())
 }
 
@@ -212,7 +237,7 @@ func (tables *agentTables) move(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "本局已达 2000 手上限，仍可认输结束。")
 			return
 		}
-		move, err := parseTableMove(input.Move, next.Size)
+		move, err := game.ParseMove(input.Move, next.Size)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -230,6 +255,8 @@ func (tables *agentTables) move(w http.ResponseWriter, r *http.Request) {
 	}
 	table.game = &next
 	table.revision++
+	close(table.changed)
+	table.changed = make(chan struct{})
 	table.updated = time.Now()
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, table.state())
@@ -238,59 +265,24 @@ func (tables *agentTables) move(w http.ResponseWriter, r *http.Request) {
 // state is read and encoded while the table lock is held.
 func (table *agentTable) state() tableState {
 	g := table.game
-	state := tableState{Game: g, Revision: table.revision, Turn: "over", Legal: []string{}, Opponent: table.opponent}
-	var ascii strings.Builder
-	fmt.Fprint(&ascii, "   ")
-	for x := 0; x < g.Size; x++ {
-		fmt.Fprintf(&ascii, "%c ", boardColumns[x])
+	state := tableState{Game: g, Revision: table.revision, Turn: "over", ASCII: game.ASCII(g), Legal: []string{}, Opponent: table.opponent}
+	if g.Over {
+		return state
 	}
-	fmt.Fprintln(&ascii)
-	for y := 0; y < g.Size; y++ {
-		fmt.Fprintf(&ascii, "%2d ", g.Size-y)
-		for x := 0; x < g.Size; x++ {
-			fmt.Fprintf(&ascii, "%c ", ".XO"[g.Board[y*g.Size+x]])
-		}
-		fmt.Fprintf(&ascii, "%d\n", g.Size-y)
+	state.Turn = "black"
+	if g.Next == game.White {
+		state.Turn = "white"
 	}
-	fmt.Fprint(&ascii, "X = black, O = white, . = empty")
-	state.ASCII = ascii.String()
-	if !g.Over {
-		state.Turn = "black"
-		if g.Next == game.White {
-			state.Turn = "white"
-		}
-		room := 1
-		if table.opponent != "agent" {
-			room = 2
-		}
-		if len(g.Moves)+room <= maxTableMoves {
-			for y := 0; y < g.Size; y++ {
-				for x := 0; x < g.Size; x++ {
-					if g.IsLegal(game.Move{X: x, Y: y}) {
-						state.Legal = append(state.Legal, fmt.Sprintf("%c%d", boardColumns[x], g.Size-y))
-					}
-				}
-			}
-			state.Legal = append(state.Legal, "pass")
-		}
-		state.Legal = append(state.Legal, "resign")
+	room := 1
+	if table.opponent != "agent" {
+		room = 2
+	}
+	if len(g.Moves)+room > maxTableMoves {
+		state.Legal = []string{"resign"}
+	} else {
+		state.Legal = game.LegalMoves(g)
 	}
 	return state
-}
-
-func parseTableMove(value string, size int) (game.Move, error) {
-	value = strings.ToUpper(strings.TrimSpace(value))
-	if value == "PASS" {
-		return game.Move{X: -1, Y: -1}, nil
-	}
-	if len(value) >= 2 && len(value) <= 3 {
-		x := strings.IndexByte(boardColumns, value[0])
-		row, err := strconv.Atoi(value[1:])
-		if err == nil && x >= 0 && x < size && row >= 1 && row <= size && value[1:] == strconv.Itoa(row) {
-			return game.Move{X: x, Y: size - row}, nil
-		}
-	}
-	return game.Move{}, errors.New("请使用 D4 这样的坐标（跳过 I 列）、pass 或 resign。")
 }
 
 func randomTableToken(length int) (string, error) {

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const html = await readFile(new URL("../dist/index.html", import.meta.url), "utf8");
+const html = await readFile(new URL("../dist/play.html", import.meta.url), "utf8");
 assert.match(html, /data-engine="wasm"/);
 assert.match(html, /type="module" src="\.\/app\.js"/);
 assert.doesNotMatch(html, /(?:src|href)="\/[^/]/, "Pages assets must support a project subpath");

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"yi-go/internal/game"
+	"github.com/Lazarus-coder/yi-go/internal/game"
 )
 
 func callTable(t *testing.T, handler http.Handler, method, path string, input any, key string) *httptest.ResponseRecorder {
@@ -58,7 +58,7 @@ func readTestTable(t *testing.T, handler http.Handler, id string) tableState {
 }
 
 func TestAgentTableSeatsAndSpectators(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(nil)
 	created := createTestTable(t, handler, "agent")
 	if len(created.ID) != 32 || len(created.BlackKey) != 64 || len(created.WhiteKey) != 64 || created.BlackKey == created.WhiteKey {
 		t.Fatal("table ID and independent seat keys must be cryptographic tokens")
@@ -113,7 +113,7 @@ func TestAgentTableSeatsAndSpectators(t *testing.T) {
 }
 
 func TestAgentTableCPUTurnIsAtomic(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(nil)
 	created := createTestTable(t, handler, "japan")
 	if created.WhiteKey != "" || created.State.Game.Style != "japan" || created.State.Opponent != "japan" {
 		t.Fatal("CPU table must keep its profile and have only a black key")
@@ -133,7 +133,7 @@ func TestAgentTableCPUTurnIsAtomic(t *testing.T) {
 }
 
 func TestAgentTableConcurrentMovesAndIsolation(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(nil)
 	created := createTestTable(t, handler, "agent")
 	other := createTestTable(t, handler, "agent")
 	path := "/api/tables/" + created.ID + "/moves"
@@ -295,13 +295,13 @@ func TestAgentTableHTTPBoundary(t *testing.T) {
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Content-Type", tc.media)
 			w := httptest.NewRecorder()
-			newHandler().ServeHTTP(w, r)
+			newHandler(nil).ServeHTTP(w, r)
 			if w.Code != tc.status {
 				t.Fatalf("got %d, want %d: %s", w.Code, tc.status, w.Body)
 			}
 		})
 	}
-	handler := newHandler()
+	handler := newHandler(nil)
 	created := createTestTable(t, handler, "agent")
 	for _, input := range []any{
 		map[string]any{"move": "D4"},
@@ -325,8 +325,31 @@ func TestTableRejectsRemoteClientWithLocalHostHeader(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "http://localhost/api/tables/example", nil)
 	r.RemoteAddr = "192.0.2.1:50000"
 	w := httptest.NewRecorder()
-	newHandler().ServeHTTP(w, r)
+	newHandler(nil).ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden {
 		t.Fatal("expected a loopback peer")
+	}
+}
+
+func TestWaitForTableChange(t *testing.T) {
+	handler := newHandler(nil)
+	table := createTestTable(t, handler, "agent")
+	path := "/api/tables/" + table.ID
+	if w := callTable(t, handler, "GET", path+"?after=5", nil, ""); w.Code != 400 {
+		t.Fatal("future revision accepted")
+	}
+	read := make(chan *httptest.ResponseRecorder, 1)
+	go func() { read <- callTable(t, handler, "GET", path+"?after=0", nil, "") }()
+	if w := callTable(t, handler, "POST", path+"/moves", map[string]any{"revision": 0, "move": "D4"}, table.BlackKey); w.Code != 200 {
+		t.Fatalf("black move failed: %s", w.Body.String())
+	}
+	select {
+	case w := <-read:
+		var state tableState
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &state) != nil || state.Revision != 1 || state.Turn != "white" {
+			t.Fatal("waiter did not observe the new turn")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("turn waiter failed to wake")
 	}
 }

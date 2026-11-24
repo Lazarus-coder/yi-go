@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"yi-go/internal/game"
-	"yi-go/internal/match"
+	"github.com/Lazarus-coder/yi-go/internal/game"
+	"github.com/Lazarus-coder/yi-go/internal/match"
 )
 
 func post(t *testing.T, input any) (*httptest.ResponseRecorder, *game.Game) {
@@ -21,7 +21,7 @@ func post(t *testing.T, input any) (*httptest.ResponseRecorder, *game.Game) {
 	}
 	r := httptest.NewRequest(http.MethodPost, "/api/game", bytes.NewReader(body))
 	w := httptest.NewRecorder()
-	newHandler().ServeHTTP(w, r)
+	newHandler(nil).ServeHTTP(w, r)
 	if w.Code != http.StatusOK {
 		return w, nil
 	}
@@ -159,7 +159,7 @@ func TestHTTPBoundary(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/game", strings.NewReader(tc.body))
 			r.Header.Set("Origin", tc.origin)
 			w := httptest.NewRecorder()
-			newHandler().ServeHTTP(w, r)
+			newHandler(nil).ServeHTTP(w, r)
 			if w.Code != tc.status {
 				t.Fatalf("got %d, want %d: %s", w.Code, tc.status, w.Body)
 			}
@@ -171,15 +171,15 @@ func TestHTTPBoundary(t *testing.T) {
 }
 
 func TestEmbeddedPage(t *testing.T) {
-	for _, path := range []string{"/", "/style.css", "/app.js", "/engine.js"} {
+	for _, path := range []string{"/", "/arena.css", "/arena.js", "/report.json", "/play.html", "/style.css", "/app.js", "/engine.js"} {
 		w := httptest.NewRecorder()
-		newHandler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		newHandler(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != 200 || w.Body.Len() == 0 {
 			t.Errorf("embedded asset %s unavailable: %d", path, w.Code)
 		}
 	}
 	w := httptest.NewRecorder()
-	newHandler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/main.go", nil))
+	newHandler(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/main.go", nil))
 	if w.Code != 404 {
 		t.Fatal("non-web source path should not be served")
 	}

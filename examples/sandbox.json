@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "title": "Isolated adapter duel",
+  "boardSize": 9,
+  "komi": 6.5,
+  "turnTimeoutMS": 10000,
+  "maxMoves": 144,
+  "rounds": 1,
+  "openings": [
+    {
+      "id": "empty",
+      "name": "Empty board",
+      "moves": []
+    }
+  ],
+  "players": [
+    {
+      "id": "sandbox-a",
+      "name": "Sandbox A",
+      "kind": "external",
+      "version": "reference-v1",
+      "driver": {
+        "mode": "oci",
+        "runtime": "docker",
+        "image": "yi-agent:local",
+        "memoryMB": 128,
+        "cpus": 1,
+        "startupTimeoutMS": 10000
+      }
+    },
+    {
+      "id": "sandbox-b",
+      "name": "Sandbox B",
+      "kind": "external",
+      "version": "reference-v1",
+      "driver": {
+        "mode": "oci",
+        "runtime": "docker",
+        "image": "yi-agent:local",
+        "memoryMB": 128,
+        "cpus": 1,
+        "startupTimeoutMS": 10000
+      }
+    }
+  ]
+}
