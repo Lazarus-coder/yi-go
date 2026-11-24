@@ -1,4 +1,4 @@
-name: Go and GitHub Pages
+name: Go and standalone HTML
 on:
   push:
   pull_request:
@@ -14,41 +14,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - run: go test -race ./...
-      - run: go vet ./...
-      - run: go build ./...
-  build-pages:
-    needs: test
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go build ./...
       - run: sh scripts/build-pages.sh
       - run: node scripts/smoke-wasm.mjs
       - run: node --test scripts/engine.test.mjs
-      - uses: actions/upload-pages-artifact@v5
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        with:
-          path: dist
-  deploy-pages:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: build-pages
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    concurrency:
-      group: github-pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/deploy-pages@v5
-        id: deployment
+      - run: node scripts/build-html.mjs
+      - run: node --test scripts/html.test.mjs

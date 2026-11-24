@@ -1,0 +1,75 @@
+/* A lit playing surface on a quiet lacquer table. All light falls from the upper left. */
+:root {
+  color-scheme: dark;
+  background: #172321;
+  color: #eee9dc;
+  --muted: #b7b9a9;
+  --line: #9fa99138;
+  --accent: #e6ab76;
+}
+body {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 14% 16%, #3a4840 0, #25332d 39%, transparent 73%),
+              linear-gradient(120deg,#202b26,#15201f 78%,#16211d);
+}
+.page { width: min(1130px, calc(100% - 72px)); }
+.header { height: 90px; border-bottom: 1px solid var(--line); }
+.brand-mark { color: #e7bb88; }
+.header-note { color: #d4c6ac; text-decoration: none; padding: 10px 0; }
+.header-note:hover { color: #fff2d9; text-decoration: underline; }
+main { grid-template-columns: minmax(0, 1fr) minmax(245px, 285px); gap: clamp(28px,5vw,70px); padding-top: 28px; }
+.board-area { min-width: 0; }
+.board-heading { color: #dedcc9; margin-bottom: 14px; }
+.board-shell {
+  position:relative; isolation:isolate; border-radius:7px;
+  border:1px solid #ebc087;
+  background-color:#e7bd81;
+  background-image:linear-gradient(119deg,#ffdf9d24 5%,transparent 53%,#82451b14),url('./kaya.jpg');
+  background-size:cover;
+  box-shadow:inset 0 0 2px 2px #ffdaa573, 0 2px #ac7744,0 4px #a26f3e,0 7px #865a35,0 8px #674329,
+             0 16px 17px -6px #080c0a94,0 35px 58px -22px #070c08b8;
+}
+#board { position:relative; aspect-ratio:1; user-select:none; }
+#board:focus-visible { outline:2px solid #923b21; outline-offset:-5px; }
+.grid-line, .grid-edge { fill:none; stroke:#604529; stroke-width:1; }
+.grid-edge { stroke:#4a301a; stroke-width:1.7; }
+.grid-label { text-anchor:middle; fill:#6d5032; font:12px ui-monospace,monospace; }
+.star-point { fill:#52351d; }
+.board-help { margin-top:22px; }
+.sidebar { border-top:1px solid #b99d744f; padding-top:14px; }
+.intro h1 { color:#eddcbc; font-size:31px; margin-bottom:17px; }
+.players { gap:15px; padding-bottom:17px; }
+.player-stone.black { background:radial-gradient(circle at 33% 23%,#777972,#363936 35%,#151916 81%,#333730 98%); border:1px solid #72766960; }
+.player-stone.white { background:radial-gradient(circle at 32% 20%,#fffdf3,#e8e3d6 55%,#bdb9ac 92%,#dcd6c7); }
+.player-stone { box-shadow:2px 3px 5px #0007; }
+.status-box { border-left:2px solid #d6a873; padding-left:12px; margin:18px 0; min-height:0; }
+.capture-stats { margin-bottom:17px; }
+select { background:#26352f; color:#f6efdd; border-color:#8a927850; }
+option,optgroup { color:#f5efdf; background:#26352f; }
+.controls button { color:#e6e4d4; }
+.controls button:not(:disabled):hover { background:#4c594a; }
+.controls button span { color:#bec1a9; }
+.controls .primary { color:#292e26; background:#dabb8c; border-color:#d5b486; }
+.controls .primary span { color:#4d513c; }
+.controls .primary:not(:disabled):hover { background:#e9cba0; }
+.turn-dot { box-shadow:0 0 6px #dfa97166; }
+@media(min-width:901px) {
+  .board-area { width:100%; max-width:min(735px, max(550px, calc(100svh - 210px))); justify-self:center; }
+}
+@media(max-width:900px) {
+ .page {width:calc(100% - 40px);}
+ main {grid-template-columns:minmax(0,1fr) 223px;gap:25px;}
+}
+@media(max-width:680px) {
+ .header {height:69px;}
+ .page {width:min(490px,calc(100% - 30px));}
+ main {padding-top:17px;gap:18px;}
+ .players {gap:14px;}
+ .board-help {margin-bottom:0;}
+ .sidebar {padding-top:15px;}
+}
+#seek { display:block; width:100%; margin:16px 0; accent-color:#d7ad78; }
+#watch-detail, #players { color:var(--muted); font-size:13px; line-height:1.65; }
+#replay-controls label { font-size:13px; }
+
+.header-links { display:flex; align-items:center; gap:24px; }

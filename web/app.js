@@ -1,60 +1,52 @@
 import { initializeEngine, runGame } from "./engine.js";
+import { renderBoard } from "./board.js";
 
 const $ = (id) => document.getElementById(id);
 const board = $("board");
 const storageKey = "yi-game-v1";
 const letters = "ABCDEFGHJKLMNOPQRST";
 const sizeNames = { 9: "九路棋盘", 13: "十三路棋盘", 19: "十九路棋盘" };
-const styleDescriptions = {
-  china: "兼顾厚势、连接与攻守平衡。",
-  japan: "重视布局、角边实地与棋形。",
-  korea: "偏好贴身战斗、打吃与主动进攻。",
-};
+let opponents = [];
 let game = { size: 9, style: "china", board: Array(81).fill(0), next: 1, moves: [], lastMove: null, captures: { black: 0, white: 0 }, over: false, resigned: 0 };
 let engineReady = false;
 let engineFailed = false;
-let busy = false;
+let busy = "";
 let restoreFailed = false;
 let cursor = { x: 4, y: 4 };
 let keyboard = false;
 let hover = null;
 
-function svg(tag, attributes) {
-  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
-  return element;
-}
-
 function position(n) { return 48 + n * 544 / (game.size - 1); }
 function coordinate(x, y) { return `${letters[x]}${game.size - y}`; }
 function cursorDescription() { return `${coordinate(cursor.x, cursor.y)}，${["空点", "黑棋", "白棋"][game.board[cursor.y * game.size + cursor.x]]}`; }
 function canPlay() { return engineReady && !busy && !restoreFailed && !game.over && game.next === 1; }
+function selectedOpponent() { return opponents.find(opponent => opponent.id === game.style); }
 
-function draw() {
-  const grid = $("grid");
-  const stones = $("stones");
-  grid.replaceChildren();
-  stones.replaceChildren();
-  const radius = 544 / (game.size - 1) * .44;
-  for (let i = 0; i < game.size; i++) {
-    const p = position(i);
-    grid.append(svg("path", { d: `M48 ${p}H592 M${p} 48V592`, stroke: "#6f5939", "stroke-width": i === 0 || i === game.size - 1 ? 1.1 : .75, opacity: ".67", fill: "none" }));
-    for (const [x, y, text] of [[p, 28, letters[i]], [p, 619, letters[i]], [25, p + 4, game.size - i], [615, p + 4, game.size - i]]) {
-      const label = svg("text", { x, y, "text-anchor": "middle", fill: "#665136", "font-size": 11, "font-family": "system-ui, sans-serif" });
-      label.textContent = text;
-      grid.append(label);
+function loadOpponents(roster) {
+  if (!Array.isArray(roster) || !roster.length || roster.some(opponent => !opponent || ["id", "name", "group", "description"].some(key => typeof opponent[key] !== "string" || !opponent[key].trim())) || new Set(roster.map(opponent => opponent.id)).size !== roster.length) throw new Error("对手名单不完整，请刷新后重试。");
+  const groups = new Map();
+  $("style").replaceChildren();
+  for (const opponent of roster) {
+    if (!groups.has(opponent.group)) {
+      const group = document.createElement("optgroup");
+      group.label = opponent.group;
+      groups.set(opponent.group, group);
+      $("style").append(group);
     }
+    const option = document.createElement("option");
+    option.value = opponent.id;
+    option.textContent = opponent.name;
+    groups.get(opponent.group).append(option);
   }
-  const star = game.size === 9 ? [2, 6] : game.size === 13 ? [3, 9] : [3, 9, 15];
-  for (const y of star) for (const x of star) grid.append(svg("circle", { cx: position(x), cy: position(y), r: 2.5, fill: "#705936" }));
-  if (game.size !== 19) grid.append(svg("circle", { cx: 320, cy: 320, r: 2.5, fill: "#705936" }));
-  game.board.forEach((color, index) => {
-    if (!color) return;
-    const x = index % game.size;
-    const y = Math.floor(index / game.size);
-    stones.append(svg("circle", { cx: position(x), cy: position(y), r: radius, fill: `url(#${color === 1 ? "black" : "white"}-stone)`, filter: "url(#stone-shadow)" }));
-    if (game.lastMove?.x === x && game.lastMove?.y === y) stones.append(svg("circle", { cx: position(x), cy: position(y), r: Math.max(2.4, radius * .17), fill: "none", stroke: color === 1 ? "#e5d7b8" : "#a54932", "stroke-width": 1.6 }));
-  });
+  opponents = roster;
+}
+
+function validateGame(data) {
+  if (!data || ![9, 13, 19].includes(data.size) || !opponents.some(opponent => opponent.id === data.style) || !Array.isArray(data.board) || data.board.length !== data.size * data.size || !Array.isArray(data.moves) || !data.captures) throw new Error("棋局数据不完整，请刷新后重试。");
+}
+
+function draw(previous = null, animateTurn = false) {
+  renderBoard(game, previous, animateTurn);
   cursor.x = Math.min(cursor.x, game.size - 1);
   cursor.y = Math.min(cursor.y, game.size - 1);
   render();
@@ -73,15 +65,20 @@ function preview() {
 }
 
 function render() {
+  const opponent = selectedOpponent();
   $("size").value = game.size;
-  $("style").value = game.style;
-  $("style-detail").textContent = styleDescriptions[game.style];
+  if (opponent) {
+    $("style").value = opponent.id;
+    $("style-detail").textContent = opponent.description;
+    $("cpu-name").textContent = opponent.name;
+    $("cpu-detail").textContent = `白棋 · ${opponent.group}`;
+  }
   $("board-size").textContent = sizeNames[game.size];
   $("move-count").textContent = `第 ${game.moves.length} 手`;
   $("black-captures").textContent = game.captures.black;
   $("white-captures").textContent = game.captures.white;
   $("human-turn").hidden = !canPlay();
-  $("cpu-turn").hidden = !busy;
+  $("cpu-turn").hidden = busy !== "play" && busy !== "pass";
   $("undo").disabled = !engineReady || busy || !game.moves.length || restoreFailed;
   $("pass").disabled = !canPlay();
   $("resign").disabled = !canPlay();
@@ -95,7 +92,18 @@ function render() {
     title = engineFailed ? "棋局未能载入" : "正在载入棋局…";
     detail = engineFailed ? "请刷新页面，重新载入后继续。" : "准备就绪后，即可落子。";
   }
-  else if (busy) { title = "正在计算棋局…"; detail = "请稍候，CPU 正在思考。"; }
+  else if (busy) {
+    [title, detail] = {
+      play: [`${opponent.name}正在思考…`, "请稍候，白棋正在选择下一手。"],
+      pass: [`${opponent.name}正在应手…`, "你停了一手，等待白棋回应。"],
+      resign: ["正在结束棋局…", "保存本局结果。"],
+      restore: ["正在恢复棋局…", "读取已保存的落子与对手。"],
+      opponent: ["正在切换对手…", "保留当前棋局，从白棋的下一手生效。"],
+      undo: ["正在悔棋…", "撤回你与 CPU 的上一轮落子。"],
+      new: ["正在开始新对局…", "准备新的棋盘。"],
+      sync: ["正在更新棋局…", "请稍候。"],
+    }[busy];
+  }
   else if (restoreFailed) { title = "棋局尚未恢复"; detail = "请刷新重试，或点击「新对局」重新开始。"; }
   else if (game.resigned) { title = "白棋获胜"; detail = "你已认输。下一局，重新开始。"; }
   else if (game.over && game.score) {
@@ -115,14 +123,15 @@ function showError(message) {
   $("error").hidden = !message;
 }
 
-async function request(payload) {
+async function request(payload, activity = payload.action) {
   if (busy || !engineReady) return false;
-  busy = true;
+  busy = activity;
   showError("");
   render();
   try {
     const data = await runGame({ style: game.style, ...payload });
-    if (![9, 13, 19].includes(data.size) || !Object.hasOwn(styleDescriptions, data.style) || !Array.isArray(data.board) || data.board.length !== data.size * data.size || !Array.isArray(data.moves) || !data.captures) throw new Error("棋局数据不完整，请刷新后重试。");
+    validateGame(data);
+    const previousGame = game;
     game = data;
     restoreFailed = false;
     hover = null;
@@ -131,13 +140,13 @@ async function request(payload) {
     } catch {
       $("save-note").textContent = "浏览器无法保存，关闭页面后棋局会丢失";
     }
-    draw();
+    draw(previousGame, payload.action === "play" || payload.action === "pass");
     return true;
   } catch (error) {
     showError(error.message || "这一步没有成功，请重试。当前棋局已保留。");
     return false;
   } finally {
-    busy = false;
+    busy = "";
     render();
   }
 }
@@ -152,7 +161,7 @@ async function newGame(size) {
     $("size").value = game.size;
     return;
   }
-  if (await request({ size, moves: [], action: "sync" })) {
+  if (await request({ size, moves: [], action: "sync" }, "new")) {
     cursor = { x: Math.floor(size / 2), y: Math.floor(size / 2) };
     render();
   }
@@ -203,16 +212,20 @@ $("resign").addEventListener("click", () => {
 });
 $("new-game").addEventListener("click", () => newGame(game.size));
 $("size").addEventListener("change", (event) => newGame(Number(event.target.value)));
-$("style").addEventListener("change", (event) => request({ size: game.size, style: event.target.value, moves: game.moves, resigned: game.resigned || 0, action: "sync" }));
+$("style").addEventListener("change", (event) => request({ size: game.size, style: event.target.value, moves: game.moves, resigned: game.resigned || 0, action: "sync" }, "opponent"));
 $("undo").addEventListener("click", () => {
   const count = game.moves.length % 2 === 0 ? 2 : 1;
-  request({ size: game.size, moves: game.moves.slice(0, -count), action: "sync" });
+  request({ size: game.size, moves: game.moves.slice(0, -count), action: "sync" }, "undo");
 });
 
 async function start() {
   draw();
   try {
     await initializeEngine();
+    const data = await runGame({ size: 9, style: "china", moves: [], action: "sync", includeOpponents: true });
+    loadOpponents(data.opponents);
+    validateGame(data);
+    game = data;
     engineReady = true;
   } catch (error) {
     engineFailed = true;
@@ -221,9 +234,17 @@ async function start() {
     return;
   }
   let saved;
-  try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch { /* A fresh game still works without browser storage. */ }
+  try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch (error) {
+    if (error instanceof SyntaxError) {
+      restoreFailed = true;
+      showError("本地棋局无法读取。请点击「新对局」重新开始。");
+      render();
+      return;
+    }
+    $("save-note").textContent = "浏览器无法保存，关闭页面后棋局会丢失";
+  }
   if (!saved) { render(); return; }
   restoreFailed = true;
-  await request({ size: saved.size, style: saved.style || "china", moves: saved.moves, resigned: saved.resigned || 0, action: "sync" });
+  await request({ size: saved.size, style: saved.style || "china", moves: saved.moves, resigned: saved.resigned || 0, action: "sync" }, "restore");
 }
 start();

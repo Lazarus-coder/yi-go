@@ -42,10 +42,12 @@ func newHandler() http.Handler {
 	}
 	static := http.FileServer(http.FS(files))
 	mux := http.NewServeMux()
+	registerAgentTables(mux)
 	mux.HandleFunc("POST /api/game", handleGame)
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/", "/index.html", "/style.css", "/app.js", "/engine.js":
+		case "/", "/index.html", "/style.css", "/app.js", "/engine.js", "/board.js", "/board.css", "/kaya.jpg",
+			"/watch.html", "/watch.js", "/exhibition.js":
 			static.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)

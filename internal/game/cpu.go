@@ -1,36 +1,44 @@
 package game
 
-import "math"
+import (
+	"cmp"
+	"math"
+	"slices"
+)
 
-type cpuStyle struct {
-	threat                               float64
-	line, ownDistance, enemyDistance     int
-	ownWeight, enemyWeight, cornerWeight float64
+type candidate struct {
+	move  Move
+	score float64
 }
 
-// Playful teaching presets, not claims about every player from a country.
-// Distances use grid steps; line is zero-based (2 is the third line).
-var cpuStyles = map[string]cpuStyle{
-	"china": {threat: 12, line: 3, ownDistance: 2, enemyDistance: 3, ownWeight: 2, enemyWeight: 0.8, cornerWeight: 0.08},
-	"japan": {threat: 8, line: 2, ownDistance: 4, enemyDistance: 5, ownWeight: 1.2, enemyWeight: 0.35, cornerWeight: 0.35},
-	"korea": {threat: 20, line: 2, ownDistance: 3, enemyDistance: 1, ownWeight: 1.2, enemyWeight: 2.8, cornerWeight: 0.08},
-}
-
-// ChooseMove is a small heuristic opponent, not a search engine. All styles
-// prioritize captures and saving groups in atari, then favor different shapes.
-// Ties are deterministic so that games and examples are easy to reproduce.
+// ChooseMove uses personality scores; advanced opponents also inspect replies.
+// Everything is deterministic so a position is useful as a teaching example.
 func (g *Game) ChooseMove() Move {
-	best := Move{-1, -1}
-	if g.Over {
-		return best
+	ranked := g.rankMoves(g.Style)
+	if len(ranked) == 0 {
+		return Move{-1, -1}
 	}
-	style, ok := cpuStyles[g.Style]
-	if !ok {
-		style = cpuStyles["china"]
+	if budget := profileFor(g.Style).search; budget > 0 {
+		return g.searchMove(ranked, budget)
 	}
+	return ranked[0].move
+}
 
+// rankMoves never searches: it can also rank an opponent's possible replies.
+func (g *Game) rankMoves(id string) []candidate {
+	if g.Over {
+		return nil
+	}
+	style := profileFor(id)
 	regions := emptyRegions(g.Board, g.Size)
-	bestValue := math.Inf(-1)
+	ranked := make([]candidate, 0, len(g.Board))
+	var seed uint32
+	if style.scatter != 0 {
+		seed = uint32(g.Next)
+		for point, color := range g.Board {
+			seed = seed*16777619 ^ uint32(point*3+color)
+		}
+	}
 	for point, color := range g.Board {
 		if color != Empty || g.isTrueEye(point) {
 			continue
@@ -56,17 +64,28 @@ func (g *Game) ChooseMove() Move {
 			continue
 		}
 
-		value := 100*float64(captured) + 70*float64(saved) +
-			style.threat*float64(threatened) + g.spacing(point, style)
+		value := style.capture*float64(captured) + style.save*float64(saved) +
+			style.threat*float64(threatened) + g.spacing(point, style) +
+			style.stability*float64(min(len(liberties), 4))
+		if style.chase != 0 && g.LastMove != nil && g.LastMove.X >= 0 {
+			distance := abs(move.X-g.LastMove.X) + abs(move.Y-g.LastMove.Y)
+			value -= style.chase * float64(distance)
+		}
+		if style.scatter != 0 {
+			// Position-seeded distraction, not random mistakes that change on replay.
+			noise := seed ^ uint32(point+1)*2654435761
+			noise ^= noise >> 16
+			noise *= 2246822519
+			noise ^= noise >> 13
+			value += style.scatter * float64(noise%1000) / 1000
+		}
 		if len(liberties) == 1 {
 			value -= 30 * float64(len(stones))
 		}
-		if value > bestValue {
-			bestValue = value
-			best = move
-		}
+		ranked = append(ranked, candidate{move, value})
 	}
-	return best
+	slices.SortStableFunc(ranked, func(a, b candidate) int { return cmp.Compare(b.score, a.score) })
+	return ranked
 }
 
 // tactics counts adjacent groups once, even if they touch the move twice.
@@ -93,7 +112,7 @@ func (g *Game) tactics(point, newLiberties int) (saved, threatened int) {
 func (g *Game) spacing(point int, style cpuStyle) float64 {
 	x, y := point%g.Size, point/g.Size
 	edge := min(x, y, g.Size-1-x, g.Size-1-y)
-	value := -2 * math.Abs(float64(edge-style.line))
+	value := -style.lineWeight * math.Abs(float64(edge-style.line))
 	nearestOwn, nearestEnemy := 2*g.Size, 2*g.Size
 	for other, color := range g.Board {
 		if color == Empty {

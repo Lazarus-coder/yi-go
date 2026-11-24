@@ -14,17 +14,24 @@ var (
 )
 
 type Request struct {
-	Size     int         `json:"size"`
-	Moves    []game.Move `json:"moves"`
-	Action   string      `json:"action"`
-	X        *int        `json:"x,omitempty"`
-	Y        *int        `json:"y,omitempty"`
-	Resigned int         `json:"resigned,omitempty"`
-	Style    string      `json:"style,omitempty"`
+	Size             int         `json:"size"`
+	Moves            []game.Move `json:"moves"`
+	Action           string      `json:"action"`
+	X                *int        `json:"x,omitempty"`
+	Y                *int        `json:"y,omitempty"`
+	Resigned         int         `json:"resigned,omitempty"`
+	Style            string      `json:"style,omitempty"`
+	IncludeOpponents bool        `json:"includeOpponents,omitempty"`
+}
+
+// Result adds the selectable opponents only when the client asks for the list.
+type Result struct {
+	*game.Game
+	Opponents []game.Opponent `json:"opponents,omitempty"`
 }
 
 // Run always reconstructs a fresh game; rejected requests cannot alter a save.
-func Run(input Request) (*game.Game, error) {
+func Run(input Request) (*Result, error) {
 	g, err := restore(input)
 	if err != nil {
 		return nil, err
@@ -64,7 +71,11 @@ func Run(input Request) (*game.Game, error) {
 	default:
 		return nil, errors.New("未知操作")
 	}
-	return g, nil
+	result := &Result{Game: g}
+	if input.IncludeOpponents {
+		result.Opponents = game.Opponents()
+	}
+	return result, nil
 }
 
 func restore(input Request) (*game.Game, error) {

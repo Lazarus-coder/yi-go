@@ -9,13 +9,12 @@ import (
 	"strings"
 	"syscall/js"
 
-	"yi-go/internal/game"
 	"yi-go/internal/match"
 )
 
 type response struct {
-	Game  *game.Game `json:"game,omitempty"`
-	Error string     `json:"error,omitempty"`
+	Game  *match.Result `json:"game,omitempty"`
+	Error string        `json:"error,omitempty"`
 }
 
 func run(_ js.Value, args []js.Value) any {

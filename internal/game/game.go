@@ -64,14 +64,15 @@ func New(size int) (*Game, error) {
 
 // NormalizeStyle keeps older saved games, which have no style, compatible.
 func NormalizeStyle(value string) (string, error) {
-	switch value {
-	case "", "china":
+	if value == "" {
 		return "china", nil
-	case "japan", "korea":
-		return value, nil
-	default:
-		return "", errors.New("请选择中国、日本或韩国棋风")
 	}
+	for _, opponent := range opponentCatalog {
+		if opponent.ID == value {
+			return value, nil
+		}
+	}
+	return "", errors.New("请选择列表中的 CPU 对手")
 }
 
 // Play applies one legal move. An invalid move leaves the game unchanged.
@@ -259,3 +260,15 @@ func neighbors(point, size int) []int {
 }
 
 func opponent(color int) int { return 3 - color }
+
+// IsLegal checks the next player's move without changing the game.
+func (g *Game) IsLegal(move Move) bool {
+	if g.Over {
+		return false
+	}
+	if move.X == -1 && move.Y == -1 {
+		return true
+	}
+	_, _, err := g.tryMove(move)
+	return err == nil
+}

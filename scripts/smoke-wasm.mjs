@@ -15,10 +15,13 @@ const running = go.run(instance);
 await Promise.race([ready, running.then(() => { throw new Error("Go exited before readiness"); })]);
 const run = (input) => JSON.parse(globalThis.yiRun(JSON.stringify(input)));
 
-for (const style of ["china", "japan", "korea"]) {
+const catalogue = run({ size: 9, action: "sync", includeOpponents: true }).game.opponents;
+assert.ok(catalogue.length > 3);
+for (const { id: style } of catalogue) {
   const input = { size: 9, moves: [], style };
   const initial = run({ ...input, action: "sync" });
   assert.equal(initial.game.style, style);
+  assert.equal(initial.game.opponents, undefined);
   const played = run({ ...input, action: "play", x: 4, y: 4 });
   assert.equal(played.error, undefined);
   assert.equal(played.game.moves.length, 2, `${style} CPU must reply`);
@@ -34,4 +37,4 @@ assert.ok(run({ size: 9, action: "sync", extra: true }).error);
 assert.ok(JSON.parse(globalThis.yiRun("{} {}")).error);
 assert.ok(JSON.parse(globalThis.yiRun(" ".repeat(65537))).error);
 assert.ok(JSON.parse(globalThis.yiRun(null)).error);
-console.log("WASM smoke check passed: three CPU styles, replay, resign, sizes, input validation.");
+console.log(`WASM smoke check passed for all ${catalogue.length} selectable opponents, replay, resign, sizes and input validation.`);
