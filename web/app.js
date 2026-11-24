@@ -28,7 +28,8 @@ function svg(tag, attributes) {
 function position(n) { return 48 + n * 544 / (game.size - 1); }
 function coordinate(x, y) { return `${letters[x]}${game.size - y}`; }
 function cursorDescription() { return `${coordinate(cursor.x, cursor.y)}，${["空点", "黑棋", "白棋"][game.board[cursor.y * game.size + cursor.x]]}`; }
-function canPlay() { return engineReady && !busy && !restoreFailed && !game.over && game.next === 1; }
+function canInspect() { return engineReady && !busy && !restoreFailed; }
+function canPlay() { return canInspect() && !game.over && game.next === 1; }
 
 function draw() {
   const grid = $("grid");
@@ -61,7 +62,7 @@ function draw() {
 }
 
 function preview() {
-  for (const [id, point, visible] of [["ghost", hover, canPlay() && hover && !game.board[hover.y * game.size + hover.x]], ["cursor", cursor, keyboard && canPlay()]]) {
+  for (const [id, point, visible] of [["ghost", hover, canPlay() && hover && !game.board[hover.y * game.size + hover.x]], ["cursor", cursor, keyboard && canInspect()]]) {
     const marker = $(id);
     marker.toggleAttribute("hidden", !visible);
     if (point) {
@@ -88,7 +89,8 @@ function render() {
   $("new-game").disabled = !engineReady || busy;
   $("size").disabled = !engineReady || busy;
   $("style").disabled = !engineReady || busy || restoreFailed;
-  board.setAttribute("aria-disabled", String(!canPlay()));
+  board.setAttribute("aria-disabled", String(!canInspect()));
+  board.toggleAttribute("data-playable", canPlay());
   let title = "轮到你了";
   let detail = game.lastMove ? `CPU 落在 ${coordinate(game.lastMove.x, game.lastMove.y)}。轮到你执黑。` : "选择一个交叉点，落下第一颗棋子。";
   if (!engineReady) {
@@ -106,7 +108,10 @@ function render() {
   }
   $("status").textContent = title;
   $("status-detail").textContent = detail;
-  board.setAttribute("aria-label", `${sizeNames[game.size]}，${title}，光标 ${cursorDescription()}。使用方向键移动，回车或空格落子。`);
+  $("board-help").textContent = game.over
+    ? "对局已结束。用方向键移动光标，查看各交叉点的棋子。"
+    : "点击交叉点落子，或用方向键移动光标，按回车或空格落子。";
+  board.setAttribute("aria-label", `${sizeNames[game.size]}，${title}，光标 ${cursorDescription()}。`);
   preview();
 }
 
@@ -177,6 +182,7 @@ board.addEventListener("pointermove", (event) => {
 board.addEventListener("pointerleave", () => { hover = null; preview(); });
 board.addEventListener("pointerdown", () => { keyboard = false; preview(); });
 board.addEventListener("click", (event) => {
+  if (!canPlay()) return;
   const point = pointerPoint(event);
   if (point) { cursor = point; act("play", point); }
 });
@@ -186,7 +192,7 @@ board.addEventListener("keydown", (event) => {
   const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   if (!directions[event.key] && event.key !== "Enter" && event.key !== " ") return;
   event.preventDefault();
-  if (!canPlay()) return;
+  if (!canInspect()) return;
   keyboard = true;
   hover = null;
   if (directions[event.key]) {
